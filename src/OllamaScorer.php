@@ -18,11 +18,33 @@ final class OllamaScorer
             return null;
         }
 
-        $url = rtrim((string)env_value('OLLAMA_URL', 'http://127.0.0.1:11434'), '/') . '/api/generate';
+        $baseUrl = rtrim((string)env_value('OLLAMA_URL', 'http://127.0.0.1:11434'), '/');
+        $url = $baseUrl . '/api/generate';
         $model = env_value('OLLAMA_MODEL', 'llama3.2');
-        $timeout = max(20, (int)env_value('OLLAMA_TIMEOUT', '90'));
-        $prompt = self::prompt($analysis, mb_substr($resumeText, 0, 2500), $jobTitle, mb_substr($jobDescription, 0, 1800));
+        $fallbackModel = trim((string)env_value('OLLAMA_FALLBACK_MODEL', ''));
+        $timeout = max(30, (int)env_value('OLLAMA_TIMEOUT', '75'));
+        $context = max(1024, (int)env_value('OLLAMA_CONTEXT', '4096'));
+        $numPredict = max(120, (int)env_value('OLLAMA_NUM_PREDICT', '280'));
+        $prompt = self::prompt($analysis, mb_substr($resumeText, 0, 1100), $jobTitle, mb_substr($jobDescription, 0, 800));
 
+        if (!self::isReachable($baseUrl)) {
+            return null;
+        }
+
+        $models = array_values(array_unique(array_filter([$model, $fallbackModel])));
+        foreach ($models as $candidateModel) {
+            $enhanced = self::requestEnhancement($url, $candidateModel, $prompt, $timeout, $context, $numPredict);
+            if ($enhanced !== null) {
+                return self::merge($analysis, $enhanced);
+            }
+        }
+
+        return null;
+    }
+
+    private static function requestEnhancement(string $url, string $model, string $prompt, int $timeout, int $context, int $numPredict): ?array
+    {
+        $startedAt = microtime(true);
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_POST => true,
@@ -35,9 +57,12 @@ final class OllamaScorer
                 'prompt' => $prompt,
                 'stream' => false,
                 'format' => 'json',
+                'keep_alive' => '10m',
                 'options' => [
-                    'temperature' => 0.2,
-                    'num_ctx' => 8192,
+                    'temperature' => 0.1,
+                    'top_p' => 0.9,
+                    'num_ctx' => $context,
+                    'num_predict' => $numPredict,
                 ],
             ]),
         ]);
@@ -45,6 +70,7 @@ final class OllamaScorer
         $raw = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error = curl_error($ch);
+        curl_close($ch);
 
         if (!$raw || $status < 200 || $status >= 300) {
             self::$lastStatus = $error ?: "Ollama returned HTTP {$status}.";
@@ -60,19 +86,20 @@ final class OllamaScorer
             return null;
         }
 
-        self::$lastStatus = "Ollama model {$model} enhanced the written feedback.";
-        return self::merge($analysis, $ai);
+        $elapsed = round(microtime(true) - $startedAt, 1);
+        self::$lastStatus = "Ollama model {$model} enhanced the written feedback in {$elapsed}s.";
+        return $ai;
     }
 
     private static function prompt(array $analysis, string $resumeText, string $jobTitle, string $jobDescription): string
     {
         $mode = $analysis['mode'] === 'job' ? 'resume and job-description matching' : 'resume-only scoring';
-        $schema = 'Return only compact JSON with keys strengths, weaknesses, recommendations, keywords. Each value must be an array of 2 to 5 short strings. No markdown.';
+        $schema = 'Return compact JSON only: {"strengths":["..."],"weaknesses":["..."],"recommendations":["..."],"keywords":["..."]}. Use exactly 2 short strings per array. No markdown.';
         $currentAnalysis = json_encode([
             'overall' => $analysis['overall'],
             'scores' => $analysis['scores'],
             'sections' => $analysis['sections'],
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        ], JSON_UNESCAPED_SLASHES);
 
         return <<<PROMPT
 You are Resumo, a resume analysis assistant running locally. Improve this {$mode} report using practical recruiter and ATS feedback.
@@ -91,6 +118,28 @@ Job description:
 Resume text:
 {$resumeText}
 PROMPT;
+    }
+
+    private static function isReachable(string $baseUrl): bool
+    {
+        $ch = curl_init($baseUrl . '/api/tags');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_TIMEOUT => 5,
+        ]);
+
+        $raw = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if (!$raw || $status < 200 || $status >= 300) {
+            self::$lastStatus = $error ?: "Ollama health check returned HTTP {$status}.";
+            return false;
+        }
+
+        return true;
     }
 
     private static function merge(array $analysis, array $ai): array

@@ -5,111 +5,225 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Resumo</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-  <header class="app-header">
-    <div>
-      <p class="eyebrow">Career preparation platform</p>
-      <h1>Resumo</h1>
-    </div>
-    <div class="header-actions">
-      <button class="primary-button" id="printButton" type="button">Download Report</button>
-    </div>
-  </header>
+<body class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed">
+  <div class="wrapper">
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light border-bottom-0">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" data-widget="pushmenu" href="#" role="button" aria-label="Toggle navigation"><i class="fas fa-bars"></i></a>
+        </li>
+        <li class="nav-item d-none d-sm-inline-block">
+          <span class="nav-link font-weight-bold">Career preparation platform</span>
+        </li>
+      </ul>
+      <ul class="navbar-nav ml-auto">
+        <li class="nav-item">
+          <button class="btn btn-primary btn-sm" id="printButton" type="button">
+            <i class="fas fa-file-arrow-down mr-1"></i>
+            Download Report
+          </button>
+        </li>
+      </ul>
+    </nav>
 
-  <main class="app-shell">
-    <section class="workspace">
-      <form id="resumeForm" class="input-panel">
-        <div class="mode-tabs" role="tablist" aria-label="Analysis mode">
-          <button class="mode-tab active" type="button" data-mode="resume" role="tab" aria-selected="true">Resume Score</button>
-          <button class="mode-tab" type="button" data-mode="job" role="tab" aria-selected="false">Job Match</button>
-        </div>
+    <aside class="main-sidebar sidebar-dark-teal elevation-4">
+      <a href="./" class="brand-link">
+        <span class="brand-image resumo-brand-mark elevation-2" aria-hidden="true">R</span>
+        <span class="brand-text font-weight-bold">Resumo</span>
+      </a>
 
-        <label class="field">
-          <span>Resume File</span>
-          <input id="resumeFile" type="file" accept=".txt,.pdf,.doc,.docx">
-        </label>
+      <div class="sidebar">
+        <nav class="mt-3">
+          <ul class="nav nav-pills nav-sidebar flex-column" role="menu">
+            <li class="nav-item">
+              <a href="#resumeForm" class="nav-link active">
+                <i class="nav-icon fas fa-gauge-high"></i>
+                <p>Resume Analysis</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="#report" class="nav-link">
+                <i class="nav-icon fas fa-chart-line"></i>
+                <p>Report Dashboard</p>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </aside>
 
-        <label class="field grow">
-          <span>Resume Text</span>
-          <textarea id="resumeText" rows="14" placeholder="Paste resume text here, or upload a TXT, PDF, or DOCX resume for server-side extraction."></textarea>
-        </label>
-
-        <div class="job-fields" id="jobFields" hidden>
-          <label class="field">
-            <span>Job Title</span>
-            <input id="jobTitle" type="text" placeholder="e.g. Senior PHP Developer" disabled>
-          </label>
-          <label class="field grow">
-            <span>Job Description</span>
-            <textarea id="jobDescription" rows="10" placeholder="Paste the full target job description here." disabled></textarea>
-          </label>
-        </div>
-
-        <button class="primary-button full-width" type="submit">Analyze Resume</button>
-      </form>
-
-      <section class="dashboard" id="report">
-        <div class="summary-band">
-          <div>
-            <p class="eyebrow" id="reportMode">Resume-only analysis</p>
-            <h2 id="reportTitle">Ready to score</h2>
-            <p id="reportSubtitle">Paste a resume or upload a file to generate ATS, content, impact, skills, grammar, and formatting feedback.</p>
+    <main class="content-wrapper">
+      <section class="content-header">
+        <div class="container-fluid">
+          <div class="row align-items-center">
+            <div class="col-sm-7">
+              <h1 class="mb-1">Resume Intelligence Dashboard</h1>
+              <p class="text-muted mb-0">Score resumes, match job descriptions, and turn feedback into a polished report.</p>
+            </div>
+            <div class="col-sm-5">
+              <ol class="breadcrumb float-sm-right mt-3 mt-sm-0">
+                <li class="breadcrumb-item active">Resumo</li>
+              </ol>
+            </div>
           </div>
-          <div class="score-gauge" aria-live="polite">
-            <strong id="overallScore">--</strong>
-            <span>/100</span>
-          </div>
-        </div>
-
-        <div class="metric-grid" id="metricGrid">
-          <article class="metric-card">
-            <span>ATS Rating</span>
-            <strong>--</strong>
-            <small>Waiting for analysis</small>
-          </article>
-          <article class="metric-card">
-            <span>Resume Status</span>
-            <strong>--</strong>
-            <small>Quality classification</small>
-          </article>
-          <article class="metric-card">
-            <span>Detected Sections</span>
-            <strong>--</strong>
-            <small>Resume completeness</small>
-          </article>
-        </div>
-
-        <div class="breakdown-panel">
-          <div class="panel-heading">
-            <h3>Score Breakdown</h3>
-          </div>
-          <div id="breakdownList" class="breakdown-list"></div>
-        </div>
-
-        <div class="insight-grid">
-          <section class="insight-panel">
-            <h3>Strengths</h3>
-            <ul id="strengthsList"></ul>
-          </section>
-          <section class="insight-panel">
-            <h3>Weaknesses</h3>
-            <ul id="weaknessesList"></ul>
-          </section>
-          <section class="insight-panel" id="keywordsPanel">
-            <h3>Missing Keywords</h3>
-            <ul id="keywordsList"></ul>
-          </section>
-          <section class="insight-panel">
-            <h3>Recommendations</h3>
-            <ul id="recommendationsList"></ul>
-          </section>
         </div>
       </section>
-    </section>
-  </main>
 
+      <section class="content">
+        <div class="container-fluid">
+          <div class="row">
+            <div class="col-12 col-xl-4">
+              <form id="resumeForm" class="card card-primary card-outline input-card">
+                <div class="card-header">
+                  <h2 class="card-title h5 mb-0">
+                    <i class="fas fa-wand-magic-sparkles mr-2"></i>
+                    Analyze Resume
+                  </h2>
+                </div>
+                <div class="card-body">
+                  <div class="btn-group btn-group-toggle w-100 mode-tabs" role="tablist" aria-label="Analysis mode">
+                    <button class="btn btn-primary mode-tab active" type="button" data-mode="resume" role="tab" aria-selected="true">Resume Score</button>
+                    <button class="btn btn-outline-primary mode-tab" type="button" data-mode="job" role="tab" aria-selected="false">Job Match</button>
+                  </div>
+
+                  <div class="form-group mt-3">
+                    <label for="resumeFile">Resume File</label>
+                    <div class="custom-file">
+                      <input id="resumeFile" class="custom-file-input" type="file" accept=".txt,.pdf,.doc,.docx">
+                      <label class="custom-file-label" for="resumeFile">Choose TXT, PDF, DOC, or DOCX</label>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="resumeText">Resume Text</label>
+                    <textarea id="resumeText" class="form-control" rows="12" placeholder="Paste resume text here, or upload a TXT, PDF, or DOCX resume for server-side extraction."></textarea>
+                  </div>
+
+                  <div class="job-fields" id="jobFields" hidden>
+                    <div class="form-group">
+                      <label for="jobTitle">Job Title</label>
+                      <input id="jobTitle" class="form-control" type="text" placeholder="e.g. Senior PHP Developer" disabled>
+                    </div>
+                    <div class="form-group">
+                      <label for="jobDescription">Job Description</label>
+                      <textarea id="jobDescription" class="form-control" rows="8" placeholder="Paste the full target job description here." disabled></textarea>
+                    </div>
+                  </div>
+                </div>
+                <div class="card-footer">
+                  <button class="btn btn-primary btn-block" type="submit">
+                    <i class="fas fa-magnifying-glass-chart mr-1"></i>
+                    Analyze Resume
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="col-12 col-xl-8">
+              <section class="dashboard" id="report">
+                <div class="card summary-card">
+                  <div class="card-body">
+                    <div class="row align-items-center">
+                      <div class="col-md-8">
+                        <p class="text-uppercase text-white-50 font-weight-bold mb-1" id="reportMode">Resume-only analysis</p>
+                        <h2 id="reportTitle">Ready to score</h2>
+                        <p id="reportSubtitle" class="mb-md-0">Paste a resume or upload a file to generate ATS, content, impact, skills, grammar, and formatting feedback.</p>
+                      </div>
+                      <div class="col-md-4 mt-4 mt-md-0">
+                        <div class="score-gauge ml-md-auto" aria-live="polite">
+                          <strong id="overallScore">--</strong>
+                          <span>/100</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row" id="metricGrid">
+                  <div class="col-md-4">
+                    <div class="info-box">
+                      <span class="info-box-icon bg-info"><i class="fas fa-robot"></i></span>
+                      <div class="info-box-content">
+                        <span class="info-box-text">ATS Rating</span>
+                        <span class="info-box-number">--</span>
+                        <span class="info-box-note">Waiting for analysis</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="info-box">
+                      <span class="info-box-icon bg-success"><i class="fas fa-briefcase"></i></span>
+                      <div class="info-box-content">
+                        <span class="info-box-text">Resume Status</span>
+                        <span class="info-box-number">--</span>
+                        <span class="info-box-note">Quality classification</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="info-box">
+                      <span class="info-box-icon bg-warning"><i class="fas fa-layer-group"></i></span>
+                      <div class="info-box-content">
+                        <span class="info-box-text">Detected Sections</span>
+                        <span class="info-box-number">--</span>
+                        <span class="info-box-note">Resume completeness</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-header">
+                    <h3 class="card-title mb-0">Score Breakdown</h3>
+                  </div>
+                  <div class="card-body">
+                    <div id="breakdownList" class="breakdown-list"></div>
+                  </div>
+                </div>
+
+                <div class="row insight-grid">
+                  <div class="col-md-6">
+                    <section class="card insight-panel">
+                      <div class="card-header"><h3 class="card-title mb-0">Strengths</h3></div>
+                      <div class="card-body"><ul id="strengthsList"></ul></div>
+                    </section>
+                  </div>
+                  <div class="col-md-6">
+                    <section class="card insight-panel">
+                      <div class="card-header"><h3 class="card-title mb-0">Weaknesses</h3></div>
+                      <div class="card-body"><ul id="weaknessesList"></ul></div>
+                    </section>
+                  </div>
+                  <div class="col-md-6" id="keywordsPanel">
+                    <section class="card insight-panel">
+                      <div class="card-header"><h3 class="card-title mb-0">Missing Keywords</h3></div>
+                      <div class="card-body"><ul id="keywordsList"></ul></div>
+                    </section>
+                  </div>
+                  <div class="col-md-6">
+                    <section class="card insight-panel">
+                      <div class="card-header"><h3 class="card-title mb-0">Recommendations</h3></div>
+                      <div class="card-body"><ul id="recommendationsList"></ul></div>
+                    </section>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="app.js"></script>
 </body>
 </html>
