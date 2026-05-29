@@ -16,7 +16,7 @@ final class Database
             ':mode' => $analysis['mode'] ?? 'resume',
             ':score' => $analysis['overall'] ?? 0,
             ':job_title' => $analysis['job_title'] ?? null,
-            ':analysis_json' => json_encode($analysis, JSON_UNESCAPED_SLASHES),
+            ':analysis_json' => json_encode($analysis, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
             ':created_at' => gmdate('Y-m-d H:i:s'),
         ]);
 

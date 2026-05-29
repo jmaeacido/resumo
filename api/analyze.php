@@ -11,8 +11,7 @@ header('Content-Type: application/json');
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        http_response_code(405);
-        echo json_encode(['error' => 'POST required']);
+        sendJson(['error' => 'POST required'], 405);
         exit;
     }
 
@@ -52,11 +51,17 @@ try {
     $analysis['created_at'] = gmdate('c');
     $id = Database::saveReport($analysis);
     $analysis['id'] = $id;
+    $analysis['resume_text'] = $resumeText;
     $analysis['report_url'] = "api/report.php?id={$id}";
     $analysis['pdf_url'] = "api/report.php?id={$id}&format=pdf";
 
-    echo json_encode(['analysis' => $analysis], JSON_UNESCAPED_SLASHES);
+    sendJson(['analysis' => $analysis]);
 } catch (Throwable $e) {
-    http_response_code(422);
-    echo json_encode(['error' => $e->getMessage()]);
+    sendJson(['error' => $e->getMessage()], 422);
+}
+
+function sendJson(array $payload, int $status = 200): void
+{
+    http_response_code($status);
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
 }

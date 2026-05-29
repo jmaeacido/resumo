@@ -257,11 +257,12 @@ textarea.form-control {
   font-size: 0.84rem;
   font-weight: 800;
   letter-spacing: 0;
-  text-transform: uppercase;
+  white-space: pre-wrap;
 }
 
 .preview-resume-body p {
   margin: 0 0 8px;
+  white-space: pre-wrap;
 }
 
 .preview-bullet {

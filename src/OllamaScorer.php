@@ -24,8 +24,8 @@ final class OllamaScorer
         $fallbackModel = trim((string)env_value('OLLAMA_FALLBACK_MODEL', ''));
         $timeout = max(30, (int)env_value('OLLAMA_TIMEOUT', '75'));
         $context = max(1024, (int)env_value('OLLAMA_CONTEXT', '4096'));
-        $numPredict = max(120, (int)env_value('OLLAMA_NUM_PREDICT', '280'));
-        $prompt = self::prompt($analysis, mb_substr($resumeText, 0, 1100), $jobTitle, mb_substr($jobDescription, 0, 800));
+        $numPredict = max(420, (int)env_value('OLLAMA_NUM_PREDICT', '620'));
+        $prompt = self::prompt($analysis, mb_substr($resumeText, 0, 1800), $jobTitle, mb_substr($jobDescription, 0, 1000));
 
         if (!self::isReachable($baseUrl)) {
             return null;
@@ -94,7 +94,7 @@ final class OllamaScorer
     private static function prompt(array $analysis, string $resumeText, string $jobTitle, string $jobDescription): string
     {
         $mode = $analysis['mode'] === 'job' ? 'resume and job-description matching' : 'resume-only scoring';
-        $schema = 'Return compact JSON only: {"strengths":["..."],"weaknesses":["..."],"recommendations":["..."],"keywords":["..."]}. Use exactly 2 short strings per array. No markdown.';
+        $schema = 'Return JSON only: {"strengths":["..."],"weaknesses":["..."],"recommendations":["..."],"keywords":["..."]}. Use exactly 4 detailed strings for strengths, weaknesses, and recommendations. Each item must be 20-35 words, specific to the resume, and explain why it matters. No markdown.';
         $currentAnalysis = json_encode([
             'overall' => $analysis['overall'],
             'scores' => $analysis['scores'],
@@ -150,13 +150,27 @@ PROMPT;
 
         foreach ($allowedKeys as $key) {
             if (isset($ai[$key]) && is_array($ai[$key])) {
-                $items = array_values(array_filter(array_map('strval', $ai[$key])));
-                if ($items) {
+                $items = array_values(array_filter(array_map(
+                    'strval',
+                    $key === 'keywords' ? $ai[$key] : array_filter($ai[$key], [self::class, 'isDetailedFeedback'])
+                )));
+                if ($key === 'keywords' ? $items : count($items) >= 3) {
                     $analysis[$key] = array_slice($items, 0, $key === 'keywords' ? 18 : 8);
                 }
             }
         }
 
         return $analysis;
+    }
+
+    private static function isDetailedFeedback(mixed $item): bool
+    {
+        $text = trim((string)$item);
+        if ($text === '') {
+            return false;
+        }
+
+        $words = str_word_count($text);
+        return $words >= 14 && $words <= 60 && strlen($text) >= 80;
     }
 }

@@ -30,7 +30,7 @@ final class DocumentExtractor
     {
         $parser = new Parser();
         $pdf = $parser->parseFile($path);
-        return trim($pdf->getText());
+        return self::cleanPdfText($pdf->getText());
     }
 
     private static function docx(string $path): string
@@ -50,5 +50,34 @@ final class DocumentExtractor
         $xml = preg_replace('/<w:tab\/>/', ' ', $xml);
         $xml = preg_replace('/<\/w:p>/', "\n", $xml);
         return trim(html_entity_decode(strip_tags($xml), ENT_QUOTES | ENT_XML1, 'UTF-8'));
+    }
+
+    private static function cleanPdfText(string $text): string
+    {
+        $text = iconv('UTF-8', 'UTF-8//IGNORE', $text) ?: $text;
+        $lines = preg_split('/\R/u', $text) ?: [];
+        $cleaned = [];
+
+        foreach ($lines as $line) {
+            $line = preg_replace('/^\s*\x{FFFD}+\s*/u', '', $line) ?? $line;
+            $trimmed = trim($line);
+
+            if ($trimmed === '') {
+                $cleaned[] = '';
+                continue;
+            }
+
+            if (preg_match('/^[•·▪▫◦●○-]+$/u', $trimmed) === 1) {
+                continue;
+            }
+
+            if (preg_match('/^\d{1,2}$/u', $trimmed) === 1) {
+                continue;
+            }
+
+            $cleaned[] = trim($line);
+        }
+
+        return trim(preg_replace("/\n{3,}/", "\n\n", implode("\n", $cleaned)) ?? implode("\n", $cleaned));
     }
 }

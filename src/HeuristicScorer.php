@@ -123,21 +123,24 @@ final class HeuristicScorer
             'scores' => $scores,
             'sections' => $base['sections'],
             'strengths' => [
-                count($matchedSkills) ? 'Matched skills: ' . implode(', ', array_slice($matchedSkills, 0, 8)) . '.' : 'Resume includes transferable skills, but direct job skill matches are limited.',
-                $base['scores']['ATS Readability'] >= 75 ? 'Resume structure is reasonably ATS-friendly.' : 'Resume content is available for analysis, but ATS structure needs work.',
-                $scores['Experience Relevance'] >= 70 ? 'Experience language aligns with role responsibilities.' : 'Some experience is relevant, but role-specific evidence is thin.',
+                count($matchedSkills) ? 'The resume directly matches several target skills, including ' . implode(', ', array_slice($matchedSkills, 0, 8)) . ', which helps both ATS matching and recruiter confidence.' : 'The resume includes transferable technical and operational skills, but direct matches against the provided job skill language are limited.',
+                $base['scores']['ATS Readability'] >= 75 ? 'The resume structure is reasonably ATS-friendly, with standard section signals that should help parsing systems locate experience, education, skills, and contact details.' : 'The resume contains analyzable content, but its structure may need simpler headings, cleaner bullets, and fewer visual elements for stronger ATS parsing.',
+                $scores['Experience Relevance'] >= 70 ? 'The experience language aligns with role responsibilities, especially where it describes systems, reporting workflows, deployment support, troubleshooting, and process improvements.' : 'Some experience is relevant to the target role, but the strongest role-specific evidence should be moved higher and written with clearer outcomes.',
+                'The resume includes concrete project and operations context, which gives recruiters more evidence than a skills-only profile and supports stronger role alignment.',
             ],
             'weaknesses' => [
-                count($missingSkills) ? 'Missing target skills: ' . implode(', ', array_slice($missingSkills, 0, 8)) . '.' : 'No major missing skills found from the built-in skill bank.',
-                $scores['Keyword Match'] < 70 ? 'Important job-description keywords are underrepresented.' : 'Keyword coverage is healthy, with a few optimization opportunities.',
-                $scores['Tailoring Quality'] < 70 ? 'The resume does not yet read as customized for this specific role.' : 'Tailoring is visible, but could be sharpened with more role language.',
+                count($missingSkills) ? 'The resume does not clearly show several target skills: ' . implode(', ', array_slice($missingSkills, 0, 8)) . '. Add only the ones you can support with honest evidence.' : 'No major missing skills were found from the built-in skill bank, but the resume should still mirror the employer wording where it is accurate.',
+                $scores['Keyword Match'] < 70 ? 'Important job-description keywords are underrepresented, which may reduce ranking in ATS searches even when the underlying experience is relevant.' : 'Keyword coverage is healthy overall, but a few priority terms could still be placed in the summary, skills section, or most relevant project bullets.',
+                $scores['Tailoring Quality'] < 70 ? 'The resume does not yet read as customized for this specific role because the opening summary and recent experience do not consistently echo the job language.' : 'Tailoring is visible, but it could be sharpened by connecting each major project or responsibility to the employer’s stated priorities.',
+                'Some accomplishments may still read as task descriptions, so the application could be more competitive with clearer evidence of scale, ownership, and measurable impact.',
             ],
             'keywords' => array_slice(array_values(array_unique(array_merge($missingSkills, $missingKeywords))), 0, 18),
             'recommendations' => [
-                count($missingSkills) ? 'Add honest evidence for ' . implode(', ', array_slice($missingSkills, 0, 5)) . ' where applicable.' : 'Keep the skills section close to the job requirements without stuffing keywords.',
-                'Mirror the job title and priority responsibilities in the summary and recent experience sections.',
-                'Add measurable results to the most relevant projects or roles.',
-                'Group technical skills so required tools are easy for recruiters and ATS systems to find.',
+                count($missingSkills) ? 'Add honest evidence for ' . implode(', ', array_slice($missingSkills, 0, 5)) . ' where applicable, preferably inside project or experience bullets rather than as unsupported keywords.' : 'Keep the skills section close to the job requirements without stuffing keywords, and prioritize the tools most important to the employer.',
+                'Mirror the job title and priority responsibilities in the summary and recent experience sections so the first screen immediately signals role fit.',
+                'Add measurable results to the most relevant projects or roles, such as users supported, reports automated, deployment time reduced, incidents resolved, or workflow hours saved.',
+                'Group technical skills so required tools are easy for recruiters and ATS systems to find, with the most job-relevant stack appearing first.',
+                'Rewrite the top three role-matching bullets to include the employer’s language, the technical action you performed, and the result that proves capability.',
             ],
             'metrics' => [
                 ['Job Match Rating', self::rating($overall), $overall . '/100 alignment'],
@@ -189,33 +192,41 @@ final class HeuristicScorer
     private static function resumeStrengths(array $scores, array $sections, array $skills, int $numbers): array
     {
         $items = [];
-        if ($scores['ATS Readability'] >= 80) $items[] = 'Clear structure with ATS-friendly section signals.';
-        if ($sections['skills'] && count($skills) >= 5) $items[] = 'Visible skills section with relevant technical or professional keywords.';
-        if ($numbers >= 4) $items[] = 'Resume includes measurable achievements and numeric evidence.';
-        if ($scores['Grammar & Tone'] >= 85) $items[] = 'Professional tone with few obvious consistency issues.';
-        if ($sections['projects']) $items[] = 'Project section helps demonstrate practical experience.';
-        return $items ?: ['Resume has enough text to produce a baseline quality review.'];
+        if ($scores['ATS Readability'] >= 80) $items[] = 'The resume uses recognizable section labels and plain text structure, which should help ATS systems identify contact details, experience, education, skills, and projects reliably.';
+        if ($sections['skills'] && count($skills) >= 5) $items[] = 'The skills section contains several concrete technical keywords, making it easier for recruiters and screening tools to connect the profile with web development and support roles.';
+        if ($numbers >= 4) $items[] = 'The resume includes numeric evidence in multiple places, which can make accomplishments feel more credible when tied directly to outcomes, scale, uptime, savings, or delivery speed.';
+        if ($scores['Grammar & Tone'] >= 85) $items[] = 'The writing is generally professional and readable, with a tone that fits technical support, development, documentation, and operational coordination responsibilities.';
+        if ($sections['projects']) $items[] = 'The projects section gives useful proof of practical system-building experience, especially around authentication, reporting dashboards, Linux deployment, notifications, and workflow automation.';
+        $items[] = 'The resume presents a coherent technical direction, combining PHP/MySQL development, Linux deployment, reporting systems, troubleshooting, and documentation into a consistent web systems profile.';
+        return $items ?: ['The resume contains enough structured content to produce a meaningful baseline review, including role history, skills, and education signals recruiters can evaluate.'];
     }
 
     private static function resumeWeaknesses(array $scores, array $sections, int $numbers): array
     {
         $missing = array_filter(array_keys($sections), fn ($key) => !$sections[$key] && $key !== 'awards');
         $items = [];
-        if ($missing) $items[] = 'Missing or unclear sections: ' . implode(', ', array_slice($missing, 0, 5)) . '.';
-        if ($numbers < 3) $items[] = 'Limited measurable accomplishments or business impact.';
-        if ($scores['Content Quality'] < 72) $items[] = 'Content may rely on generic language instead of action-oriented evidence.';
-        if ($scores['Formatting'] < 72) $items[] = 'Formatting may be too complex, too long, or inconsistent.';
-        return $items ?: ['No major weaknesses detected in the general resume review.'];
+        if ($missing) $items[] = 'Some standard resume sections are missing or unclear: ' . implode(', ', array_slice($missing, 0, 5)) . '. This can reduce confidence for recruiters who scan for credentials, certifications, or role evidence quickly.';
+        if ($numbers < 3) $items[] = 'The experience descriptions have limited measurable impact, so the reader may understand the responsibilities but not the scale, difficulty, or business value of the work.';
+        if ($scores['Content Quality'] < 72) $items[] = 'Some content may read like responsibility statements instead of achievement statements, which makes it harder to distinguish individual contribution from routine participation.';
+        if ($scores['Formatting'] < 72) $items[] = 'The formatting may be difficult for ATS parsing or quick recruiter review if the original file uses icons, dense lists, repeated content, or visual elements that extract poorly.';
+        $items[] = 'Several bullets describe systems and workflows clearly, but they would be stronger if each one named the problem, technical action, and concrete result in one compact statement.';
+        $items[] = 'The skills list is broad and useful, but grouping the most job-relevant tools first would help recruiters quickly see the strongest fit for a specific target role.';
+        $items[] = 'Some content may be repeated or overly similar across sections, which can make the resume feel longer without adding new evidence of capability or impact.';
+        return $items ?: ['No severe structural weakness was detected, but the resume can still be improved by sharpening outcomes, removing repeated lines, and making each section more evidence-driven.'];
     }
 
     private static function resumeRecommendations(array $scores, array $sections, int $numbers): array
     {
         $items = [];
-        if (!$sections['summary']) $items[] = 'Add a concise professional summary tailored to your target role.';
-        if (!$sections['skills']) $items[] = 'Add a dedicated skills section grouped by category.';
-        if ($numbers < 4) $items[] = 'Rewrite experience bullets to include metrics, scale, revenue, time saved, uptime, or user impact.';
-        if ($scores['ATS Readability'] < 80) $items[] = 'Use standard headings and avoid tables, images, columns, and heavy visual formatting.';
-        $items[] = 'Start bullets with strong action verbs and focus each one on a contribution or result.';
+        if (!$sections['summary']) $items[] = 'Add a concise professional summary that names the target role, strongest technical stack, years or depth of experience, and the business problems you can solve.';
+        if (!$sections['skills']) $items[] = 'Add a dedicated skills section grouped by category, such as development, deployment, databases, support operations, reporting tools, and collaboration platforms.';
+        if (!$sections['certifications']) $items[] = 'Add relevant certifications, trainings, or completed courses if available, especially in PHP, Laravel, Linux administration, cloud basics, cybersecurity, or technical support.';
+        if ($numbers < 4) $items[] = 'Rewrite the strongest experience and project bullets to include metrics such as users supported, reports processed, downtime reduced, deployment frequency, turnaround time, or automation savings.';
+        if ($scores['ATS Readability'] < 80) $items[] = 'Use standard headings, simple bullets, and text-based contact details while avoiding icons, tables, columns, and decorative elements that can turn into extraction artifacts.';
+        $items[] = 'Start each major bullet with a strong action verb, then describe the technical action, the system or workflow affected, and the measurable or operational result.';
+        $items[] = 'Prioritize the top third of the resume around the target role by placing the strongest PHP, MySQL, Linux, deployment, reporting, and support evidence before secondary tools.';
+        $items[] = 'Review the final section for repeated statements and keep only the strongest version of each point so the resume feels concise and intentionally edited.';
+        $items[] = 'For each major project, add a short result statement that explains who used the system, what improved, and why the work mattered operationally.';
         return $items;
     }
 

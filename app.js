@@ -1,6 +1,9 @@
 let currentMode = "resume";
 let latestReport = null;
-let previewMode = "formatted";
+let previewMode = "raw";
+let activePreviewText = "";
+let activePreviewLabel = "Live preview from resume text";
+let activePreviewSections = null;
 
 const form = document.getElementById("resumeForm");
 const resumeText = document.getElementById("resumeText");
@@ -21,7 +24,7 @@ const previewSectionsCount = document.getElementById("previewSectionsCount");
 const previewSectionChips = document.getElementById("previewSectionChips");
 
 const sectionPatterns = {
-  contact: /\b(email|phone|linkedin|portfolio|github|contact)\b/i,
+  contact: /(\b[\w.%+-]+@[\w.-]+\.[a-z]{2,}\b)|(\+?\d[\d\s().-]{7,})|(linkedin\.com\/in\/)/i,
   summary: /\b(summary|profile|objective|professional summary|career summary)\b/i,
   experience: /\b(experience|employment|work history|professional experience)\b/i,
   education: /\b(education|degree|university|college|bachelor|master|phd|diploma)\b/i,
@@ -63,16 +66,21 @@ resumeFile.addEventListener("change", () => {
   const file = resumeFile.files[0];
   fileLabel.textContent = file ? file.name : "Choose TXT, PDF, DOC, or DOCX";
   if (!file) {
-    updateResumePreview();
+    setPreviewDocument(resumeText.value, "Live preview from resume text");
     return;
   }
   if (file.name.toLowerCase().endsWith(".txt")) {
     file.text().then((text) => {
-      if (!resumeText.value.trim()) {
+      const pastedText = resumeText.value.trim();
+      if (!pastedText) {
         resumeText.value = text;
+        resumeFile.value = "";
+        fileLabel.textContent = `${file.name} loaded`;
         showToast("TXT resume loaded into the editor.");
+        setPreviewDocument(text, `Previewing exact text from ${file.name}`);
+        return;
       }
-      updateResumePreview(text, `Previewing ${file.name}`);
+      setPreviewDocument(analyzedResumeText(text), `Previewing exact analysis input from ${file.name}`);
     });
     return;
   }
@@ -80,7 +88,7 @@ resumeFile.addEventListener("change", () => {
   if (!resumeText.value.trim()) {
     renderPreviewWaiting(file.name);
   } else {
-    updateResumePreview(resumeText.value, `Previewing pasted text with ${file.name} attached`);
+    setPreviewDocument(resumeText.value, `Previewing pasted text until ${file.name} is extracted`);
   }
 });
 
@@ -98,7 +106,7 @@ form.addEventListener("submit", async (event) => {
 });
 
 resumeText.addEventListener("input", () => {
-  updateResumePreview();
+  setPreviewDocument(resumeText.value, "Live preview from resume text");
 });
 
 previewButtons.forEach((button) => {
@@ -147,8 +155,10 @@ async function analyze() {
     setProgress(100, "Report ready");
     latestReport = data.analysis;
     renderReport(latestReport);
-    if (!resumeText.value.trim() && latestReport.resume_excerpt) {
-      updateResumePreview(latestReport.resume_excerpt, "Previewing extracted resume excerpt");
+    if (latestReport.resume_text) {
+      setPreviewDocument(latestReport.resume_text, "Previewing exact analyzed resume", latestReport.sections);
+    } else if (!resumeText.value.trim() && latestReport.resume_excerpt) {
+      setPreviewDocument(latestReport.resume_excerpt, "Previewing extracted resume excerpt", latestReport.sections);
     }
     await finishProgressModal();
     showToast("Analysis complete. Your report is ready.");
@@ -220,12 +230,20 @@ function renderReport(analysis) {
   }
 }
 
-function updateResumePreview(sourceText = resumeText.value, sourceLabel = "Live preview from resume text") {
-  const text = cleanPreviewText(sourceText).trim();
-  previewSource.textContent = text ? sourceLabel : "Live preview from resume text";
-  updatePreviewStats(text);
+function setPreviewDocument(sourceText, sourceLabel = "Live preview from resume text", sections = null) {
+  activePreviewText = String(sourceText ?? "");
+  activePreviewLabel = sourceLabel;
+  activePreviewSections = sections;
+  updateResumePreview();
+}
 
-  if (!text) {
+function updateResumePreview() {
+  const text = String(activePreviewText ?? "");
+  const trimmedText = text.trim();
+  previewSource.textContent = trimmedText ? activePreviewLabel : "Live preview from resume text";
+  updatePreviewStats(text, activePreviewSections);
+
+  if (!trimmedText) {
     resumePreview.classList.remove("raw-mode");
     resumePreview.innerHTML = `
       <div class="preview-empty">
@@ -243,21 +261,24 @@ function updateResumePreview(sourceText = resumeText.value, sourceLabel = "Live 
 
 function renderPreviewWaiting(fileName) {
   previewSource.textContent = `${fileName} selected`;
+  activePreviewText = "";
+  activePreviewLabel = `${fileName} selected`;
+  activePreviewSections = null;
   updatePreviewStats("");
   resumePreview.classList.remove("raw-mode");
   resumePreview.innerHTML = `
     <div class="preview-empty">
       <i class="fas fa-file-import" aria-hidden="true"></i>
       <h3>Preview after extraction</h3>
-      <p>Run analysis to extract this file and show an excerpt here.</p>
+      <p>Run analysis to extract this file and show the exact analyzed text here.</p>
     </div>
   `;
 }
 
-function updatePreviewStats(text) {
+function updatePreviewStats(text, sectionsOverride = null) {
   const words = text ? (text.match(/\b[\p{L}\p{N}_]+\b/gu) || []).length : 0;
   const lines = text ? text.split(/\r?\n/).filter((line) => line.trim()).length : 0;
-  const sections = detectSections(text);
+  const sections = sectionsOverride ? sectionNamesFromAnalysis(sectionsOverride) : detectSections(text);
 
   previewWords.textContent = String(words);
   previewLines.textContent = String(lines);
@@ -271,67 +292,29 @@ function renderRawPreview(text) {
   return `<pre>${escapeHtml(text)}</pre>`;
 }
 
-function cleanPreviewText(text) {
-  return String(text)
-    .replace(/\uFFFD+/g, " ")
-    .replace(/(^|\s)\?{3,}(?=\s|$|[A-Za-z])/g, " ")
-    .split(/\r?\n/)
-    .filter((line) => !isExtractionNoiseLine(line))
-    .join("\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/\n{4,}/g, "\n\n\n");
-}
-
 function renderFormattedPreview(text) {
   const lines = text.split(/\r?\n/);
-  const firstContentIndex = lines.findIndex((line) => line.trim());
-  const firstLine = firstContentIndex >= 0 ? lines[firstContentIndex].trim() : "";
-  const remaining = firstContentIndex >= 0 ? lines.slice(firstContentIndex + 1) : lines;
-  const contactLines = [];
-  const bodyLines = [];
-
-  remaining.forEach((line, index) => {
-    const trimmed = line.trim();
-    const isEarlyContact = index < 5 && /(@|linkedin\.com|github\.com|\+?\d[\d\s().-]{7,}|https?:\/\/)/i.test(trimmed);
-    if (trimmed && isEarlyContact) {
-      contactLines.push(trimmed);
-      return;
-    }
-    bodyLines.push(line);
-  });
-
-  const body = bodyLines
+  const body = lines
     .map((line) => renderPreviewLine(line))
     .join("");
 
   return `
-    <header class="preview-resume-header">
-      <h3>${escapeHtml(firstLine || "Untitled Resume")}</h3>
-      ${contactLines.length ? `<div>${contactLines.map((line) => `<span>${escapeHtml(line)}</span>`).join("")}</div>` : ""}
-    </header>
     <div class="preview-resume-body">${body || `<p class="preview-muted">Add more resume content to build the preview.</p>`}</div>
   `;
 }
 
 function renderPreviewLine(line) {
-  const trimmed = line.trim();
+  const exactLine = String(line);
+  const trimmed = exactLine.trim();
   if (!trimmed) {
     return `<div class="preview-space"></div>`;
   }
 
-  if (isExtractionNoiseLine(trimmed)) {
-    return "";
-  }
-
   if (isSectionHeading(trimmed)) {
-    return `<h4>${escapeHtml(trimmed.replace(/:$/, ""))}</h4>`;
+    return `<h4>${escapeHtml(exactLine)}</h4>`;
   }
 
-  if (/^[-*•·▪▫◦●○]\s+/.test(trimmed)) {
-    return `<p class="preview-bullet"><span></span>${escapeHtml(trimmed.replace(/^[-*•·▪▫◦●○]\s+/, ""))}</p>`;
-  }
-
-  return `<p>${escapeHtml(trimmed)}</p>`;
+  return `<p>${escapeHtml(exactLine)}</p>`;
 }
 
 function detectSections(text) {
@@ -341,11 +324,20 @@ function detectSections(text) {
     .map(([name]) => name);
 }
 
-function isExtractionNoiseLine(line) {
-  const trimmed = String(line).trim();
-  if (!trimmed) return false;
-  if (/^\d{1,2}$/.test(trimmed)) return true;
-  return trimmed.length <= 12 && /^[^\p{L}\p{N}]+$/u.test(trimmed);
+function sectionNamesFromAnalysis(sections) {
+  if (Array.isArray(sections)) {
+    return sections;
+  }
+  return Object.entries(sections)
+    .filter(([, detected]) => Boolean(detected))
+    .map(([name]) => name);
+}
+
+function analyzedResumeText(fileText = "") {
+  return [fileText, resumeText.value]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function isSectionHeading(line) {
@@ -374,7 +366,7 @@ function postAnalysis(formData) {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open("POST", "api/analyze.php");
-    request.responseType = "json";
+    request.responseType = "text";
 
     request.upload.addEventListener("progress", (event) => {
       if (!event.lengthComputable) return;
@@ -384,8 +376,19 @@ function postAnalysis(formData) {
     });
 
     request.addEventListener("load", () => {
-      const data = request.response || {};
+      let data = {};
+      try {
+        data = request.responseText ? JSON.parse(request.responseText) : {};
+      } catch (error) {
+        reject(new Error("Analysis returned an unreadable response. Check the server error log for details."));
+        return;
+      }
+
       if (request.status >= 200 && request.status < 300) {
+        if (!data.analysis || typeof data.analysis !== "object") {
+          reject(new Error(data.error || "Analysis completed without a report payload."));
+          return;
+        }
         resolve(data);
         return;
       }
@@ -547,4 +550,4 @@ function escapeHtml(value) {
 
 syncJobFields();
 setProgress(0, "Ready");
-updateResumePreview();
+setPreviewDocument(resumeText.value, "Live preview from resume text");
