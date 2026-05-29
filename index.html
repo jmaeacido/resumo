@@ -47,6 +47,12 @@
               </a>
             </li>
             <li class="nav-item">
+              <a href="#resumePreviewPanel" class="nav-link">
+                <i class="nav-icon fas fa-file-lines"></i>
+                <p>Resume Preview</p>
+              </a>
+            </li>
+            <li class="nav-item">
               <a href="#report" class="nav-link">
                 <i class="nav-icon fas fa-chart-line"></i>
                 <p>Report Dashboard</p>
@@ -125,6 +131,54 @@
             </div>
 
             <div class="col-12 col-xl-8">
+              <section class="card resume-preview-card" id="resumePreviewPanel">
+                <div class="card-header preview-header">
+                  <div>
+                    <h2 class="card-title h5 mb-0">
+                      <i class="fas fa-file-lines mr-2"></i>
+                      Resume Preview
+                    </h2>
+                    <p class="preview-meta mb-0" id="previewSource">Live preview from resume text</p>
+                  </div>
+                  <div class="btn-group btn-group-sm preview-toggle" role="tablist" aria-label="Resume preview mode">
+                    <button class="btn btn-primary preview-mode active" type="button" data-preview-mode="formatted" aria-selected="true">
+                      <i class="fas fa-align-left" aria-hidden="true"></i>
+                      <span>Formatted</span>
+                    </button>
+                    <button class="btn btn-outline-primary preview-mode" type="button" data-preview-mode="raw" aria-selected="false">
+                      <i class="fas fa-code" aria-hidden="true"></i>
+                      <span>Raw</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div class="resume-preview-layout">
+                    <article class="resume-page" id="resumePreview" aria-live="polite">
+                      <div class="preview-empty">
+                        <i class="fas fa-file-circle-plus" aria-hidden="true"></i>
+                        <h3>Resume preview will appear here</h3>
+                        <p>Paste resume text or load a TXT file to preview the document before scoring.</p>
+                      </div>
+                    </article>
+                    <aside class="preview-inspector" aria-label="Resume preview details">
+                      <div class="preview-stat">
+                        <span>Words</span>
+                        <strong id="previewWords">0</strong>
+                      </div>
+                      <div class="preview-stat">
+                        <span>Lines</span>
+                        <strong id="previewLines">0</strong>
+                      </div>
+                      <div class="preview-stat">
+                        <span>Sections</span>
+                        <strong id="previewSectionsCount">0</strong>
+                      </div>
+                      <div class="section-chips" id="previewSectionChips" aria-label="Detected resume sections"></div>
+                    </aside>
+                  </div>
+                </div>
+              </section>
+
               <section class="dashboard" id="report">
                 <div class="card summary-card">
                   <div class="card-body">

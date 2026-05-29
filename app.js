@@ -1,5 +1,6 @@
 let currentMode = "resume";
 let latestReport = null;
+let previewMode = "formatted";
 
 const form = document.getElementById("resumeForm");
 const resumeText = document.getElementById("resumeText");
@@ -11,6 +12,24 @@ const tabs = document.querySelectorAll(".mode-tab");
 const printButton = document.getElementById("printButton");
 const submitButton = form.querySelector("button[type='submit']");
 const fileLabel = document.querySelector(".custom-file-label");
+const previewButtons = document.querySelectorAll(".preview-mode");
+const resumePreview = document.getElementById("resumePreview");
+const previewSource = document.getElementById("previewSource");
+const previewWords = document.getElementById("previewWords");
+const previewLines = document.getElementById("previewLines");
+const previewSectionsCount = document.getElementById("previewSectionsCount");
+const previewSectionChips = document.getElementById("previewSectionChips");
+
+const sectionPatterns = {
+  contact: /\b(email|phone|linkedin|portfolio|github|contact)\b/i,
+  summary: /\b(summary|profile|objective|professional summary|career summary)\b/i,
+  experience: /\b(experience|employment|work history|professional experience)\b/i,
+  education: /\b(education|degree|university|college|bachelor|master|phd|diploma)\b/i,
+  skills: /\b(skills|technical skills|core competencies|technologies)\b/i,
+  certifications: /\b(certifications?|licenses?|accreditations?)\b/i,
+  projects: /\b(projects?|portfolio|selected work)\b/i,
+  awards: /\b(awards?|honors?|achievements?)\b/i
+};
 
 const processSteps = [
   { id: "prepare", label: "Preparing resume inputs", target: 10 },
@@ -43,14 +62,25 @@ tabs.forEach((tab) => {
 resumeFile.addEventListener("change", () => {
   const file = resumeFile.files[0];
   fileLabel.textContent = file ? file.name : "Choose TXT, PDF, DOC, or DOCX";
-  if (!file) return;
+  if (!file) {
+    updateResumePreview();
+    return;
+  }
   if (file.name.toLowerCase().endsWith(".txt")) {
     file.text().then((text) => {
       if (!resumeText.value.trim()) {
         resumeText.value = text;
         showToast("TXT resume loaded into the editor.");
       }
+      updateResumePreview(text, `Previewing ${file.name}`);
     });
+    return;
+  }
+
+  if (!resumeText.value.trim()) {
+    renderPreviewWaiting(file.name);
+  } else {
+    updateResumePreview(resumeText.value, `Previewing pasted text with ${file.name} attached`);
   }
 });
 
@@ -65,6 +95,24 @@ printButton.addEventListener("click", () => {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   await analyze();
+});
+
+resumeText.addEventListener("input", () => {
+  updateResumePreview();
+});
+
+previewButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    previewMode = button.dataset.previewMode;
+    previewButtons.forEach((control) => {
+      const active = control === button;
+      control.classList.toggle("active", active);
+      control.classList.toggle("btn-primary", active);
+      control.classList.toggle("btn-outline-primary", !active);
+      control.setAttribute("aria-selected", String(active));
+    });
+    updateResumePreview();
+  });
 });
 
 async function analyze() {
@@ -99,6 +147,9 @@ async function analyze() {
     setProgress(100, "Report ready");
     latestReport = data.analysis;
     renderReport(latestReport);
+    if (!resumeText.value.trim() && latestReport.resume_excerpt) {
+      updateResumePreview(latestReport.resume_excerpt, "Previewing extracted resume excerpt");
+    }
     await finishProgressModal();
     showToast("Analysis complete. Your report is ready.");
   } catch (error) {
@@ -120,7 +171,9 @@ function syncJobFields() {
 
 function setBusy(isBusy) {
   submitButton.disabled = isBusy;
-  submitButton.textContent = isBusy ? "Analyzing..." : "Analyze Resume";
+  submitButton.innerHTML = isBusy
+    ? `<span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>Analyzing...`
+    : `<i class="fas fa-magnifying-glass-chart mr-1"></i>Analyze Resume`;
 }
 
 function renderReport(analysis) {
@@ -165,6 +218,144 @@ function renderReport(analysis) {
   } else {
     renderList("keywordsList", []);
   }
+}
+
+function updateResumePreview(sourceText = resumeText.value, sourceLabel = "Live preview from resume text") {
+  const text = cleanPreviewText(sourceText).trim();
+  previewSource.textContent = text ? sourceLabel : "Live preview from resume text";
+  updatePreviewStats(text);
+
+  if (!text) {
+    resumePreview.classList.remove("raw-mode");
+    resumePreview.innerHTML = `
+      <div class="preview-empty">
+        <i class="fas fa-file-circle-plus" aria-hidden="true"></i>
+        <h3>Resume preview will appear here</h3>
+        <p>Paste resume text or load a TXT file to preview the document before scoring.</p>
+      </div>
+    `;
+    return;
+  }
+
+  resumePreview.classList.toggle("raw-mode", previewMode === "raw");
+  resumePreview.innerHTML = previewMode === "raw" ? renderRawPreview(text) : renderFormattedPreview(text);
+}
+
+function renderPreviewWaiting(fileName) {
+  previewSource.textContent = `${fileName} selected`;
+  updatePreviewStats("");
+  resumePreview.classList.remove("raw-mode");
+  resumePreview.innerHTML = `
+    <div class="preview-empty">
+      <i class="fas fa-file-import" aria-hidden="true"></i>
+      <h3>Preview after extraction</h3>
+      <p>Run analysis to extract this file and show an excerpt here.</p>
+    </div>
+  `;
+}
+
+function updatePreviewStats(text) {
+  const words = text ? (text.match(/\b[\p{L}\p{N}_]+\b/gu) || []).length : 0;
+  const lines = text ? text.split(/\r?\n/).filter((line) => line.trim()).length : 0;
+  const sections = detectSections(text);
+
+  previewWords.textContent = String(words);
+  previewLines.textContent = String(lines);
+  previewSectionsCount.textContent = String(sections.length);
+  previewSectionChips.innerHTML = sections.length
+    ? sections.map((section) => `<span>${escapeHtml(toTitle(section))}</span>`).join("")
+    : `<span class="muted-chip">No sections yet</span>`;
+}
+
+function renderRawPreview(text) {
+  return `<pre>${escapeHtml(text)}</pre>`;
+}
+
+function cleanPreviewText(text) {
+  return String(text)
+    .replace(/\uFFFD+/g, " ")
+    .replace(/(^|\s)\?{3,}(?=\s|$|[A-Za-z])/g, " ")
+    .split(/\r?\n/)
+    .filter((line) => !isExtractionNoiseLine(line))
+    .join("\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{4,}/g, "\n\n\n");
+}
+
+function renderFormattedPreview(text) {
+  const lines = text.split(/\r?\n/);
+  const firstContentIndex = lines.findIndex((line) => line.trim());
+  const firstLine = firstContentIndex >= 0 ? lines[firstContentIndex].trim() : "";
+  const remaining = firstContentIndex >= 0 ? lines.slice(firstContentIndex + 1) : lines;
+  const contactLines = [];
+  const bodyLines = [];
+
+  remaining.forEach((line, index) => {
+    const trimmed = line.trim();
+    const isEarlyContact = index < 5 && /(@|linkedin\.com|github\.com|\+?\d[\d\s().-]{7,}|https?:\/\/)/i.test(trimmed);
+    if (trimmed && isEarlyContact) {
+      contactLines.push(trimmed);
+      return;
+    }
+    bodyLines.push(line);
+  });
+
+  const body = bodyLines
+    .map((line) => renderPreviewLine(line))
+    .join("");
+
+  return `
+    <header class="preview-resume-header">
+      <h3>${escapeHtml(firstLine || "Untitled Resume")}</h3>
+      ${contactLines.length ? `<div>${contactLines.map((line) => `<span>${escapeHtml(line)}</span>`).join("")}</div>` : ""}
+    </header>
+    <div class="preview-resume-body">${body || `<p class="preview-muted">Add more resume content to build the preview.</p>`}</div>
+  `;
+}
+
+function renderPreviewLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return `<div class="preview-space"></div>`;
+  }
+
+  if (isExtractionNoiseLine(trimmed)) {
+    return "";
+  }
+
+  if (isSectionHeading(trimmed)) {
+    return `<h4>${escapeHtml(trimmed.replace(/:$/, ""))}</h4>`;
+  }
+
+  if (/^[-*•·▪▫◦●○]\s+/.test(trimmed)) {
+    return `<p class="preview-bullet"><span></span>${escapeHtml(trimmed.replace(/^[-*•·▪▫◦●○]\s+/, ""))}</p>`;
+  }
+
+  return `<p>${escapeHtml(trimmed)}</p>`;
+}
+
+function detectSections(text) {
+  if (!text.trim()) return [];
+  return Object.entries(sectionPatterns)
+    .filter(([, pattern]) => pattern.test(text))
+    .map(([name]) => name);
+}
+
+function isExtractionNoiseLine(line) {
+  const trimmed = String(line).trim();
+  if (!trimmed) return false;
+  if (/^\d{1,2}$/.test(trimmed)) return true;
+  return trimmed.length <= 12 && /^[^\p{L}\p{N}]+$/u.test(trimmed);
+}
+
+function isSectionHeading(line) {
+  const normalized = line.replace(/:$/, "");
+  if (normalized.length > 38) return false;
+  return Object.values(sectionPatterns).some((pattern) => pattern.test(normalized));
+}
+
+function toTitle(value) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function renderList(id, items, asTags = false) {
@@ -356,3 +547,4 @@ function escapeHtml(value) {
 
 syncJobFields();
 setProgress(0, "Ready");
+updateResumePreview();

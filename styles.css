@@ -133,6 +133,225 @@ textarea.form-control {
   font-weight: 800;
 }
 
+.resume-preview-card {
+  overflow: hidden;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.preview-header > div:first-child {
+  min-width: 0;
+}
+
+.preview-header .card-title {
+  float: none;
+  display: block;
+  line-height: 1.25;
+}
+
+.preview-meta {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.preview-toggle {
+  flex: 0 0 auto;
+}
+
+.preview-toggle .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font-weight: 700;
+}
+
+.resume-preview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  gap: 18px;
+}
+
+.resume-page {
+  min-height: 520px;
+  max-height: 680px;
+  overflow: auto;
+  padding: clamp(1rem, 3vw, 1.7rem);
+  border: 1px solid #cfd9de;
+  border-radius: 8px;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(135deg, rgba(12, 107, 99, 0.42), rgba(201, 139, 22, 0.38)) border-box;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.preview-empty {
+  display: grid;
+  min-height: 460px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.preview-empty i {
+  color: var(--accent);
+  font-size: 2.2rem;
+}
+
+.preview-empty h3 {
+  margin: 8px 0 0;
+  color: var(--ink);
+  font-size: 1.12rem;
+  font-weight: 800;
+}
+
+.preview-empty p {
+  max-width: 320px;
+  margin: 0;
+}
+
+.preview-resume-header {
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.preview-resume-header h3 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: clamp(1.45rem, 2.5vw, 2rem);
+  font-weight: 800;
+  line-height: 1.12;
+}
+
+.preview-resume-header div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.preview-resume-body {
+  padding-top: 16px;
+  color: #202a33;
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+.preview-resume-body h4 {
+  margin: 18px 0 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--line);
+  color: var(--accent-dark);
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.preview-resume-body p {
+  margin: 0 0 8px;
+}
+
+.preview-bullet {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.preview-bullet span {
+  width: 5px;
+  height: 5px;
+  margin-top: 0.58rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.preview-space {
+  height: 10px;
+}
+
+.preview-muted {
+  color: var(--muted);
+}
+
+.resume-page.raw-mode {
+  background: #111820;
+  border-color: #23303a;
+}
+
+.resume-page.raw-mode pre {
+  min-height: 440px;
+  margin: 0;
+  color: #e9f3f1;
+  font: 0.9rem/1.55 Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.preview-inspector {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.preview-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.preview-stat span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.preview-stat strong {
+  color: var(--ink);
+  font-size: 1.25rem;
+}
+
+.section-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-top: 4px;
+}
+
+.section-chips span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #e7f0ee;
+  color: var(--accent-dark);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.section-chips .muted-chip {
+  background: #edf2f4;
+  color: var(--muted);
+}
+
 .score-gauge {
   display: grid;
   place-items: center;
@@ -304,6 +523,30 @@ textarea.form-control {
     font-size: 1.65rem;
   }
 
+  .preview-header,
+  .resume-preview-layout {
+    display: block;
+  }
+
+  .preview-toggle {
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .preview-toggle .btn {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .resume-page {
+    min-height: 440px;
+    max-height: 560px;
+  }
+
+  .preview-inspector {
+    margin-top: 14px;
+  }
+
   .score-gauge {
     width: 124px;
     height: 124px;
@@ -324,6 +567,7 @@ textarea.form-control {
   .main-header,
   .main-sidebar,
   .input-card,
+  .resume-preview-card,
   .content-header {
     display: none !important;
   }
