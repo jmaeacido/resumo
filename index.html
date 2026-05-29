@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resumo</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">Career preparation platform</p>
+      <h1>Resumo</h1>
+    </div>
+    <div class="header-actions">
+      <button class="primary-button" id="printButton" type="button">Download Report</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="workspace">
+      <form id="resumeForm" class="input-panel">
+        <div class="mode-tabs" role="tablist" aria-label="Analysis mode">
+          <button class="mode-tab active" type="button" data-mode="resume" role="tab" aria-selected="true">Resume Score</button>
+          <button class="mode-tab" type="button" data-mode="job" role="tab" aria-selected="false">Job Match</button>
+        </div>
+
+        <label class="field">
+          <span>Resume File</span>
+          <input id="resumeFile" type="file" accept=".txt,.pdf,.doc,.docx">
+        </label>
+
+        <label class="field grow">
+          <span>Resume Text</span>
+          <textarea id="resumeText" rows="14" placeholder="Paste resume text here, or upload a TXT, PDF, or DOCX resume for server-side extraction."></textarea>
+        </label>
+
+        <div class="job-fields" id="jobFields" hidden>
+          <label class="field">
+            <span>Job Title</span>
+            <input id="jobTitle" type="text" placeholder="e.g. Senior PHP Developer" disabled>
+          </label>
+          <label class="field grow">
+            <span>Job Description</span>
+            <textarea id="jobDescription" rows="10" placeholder="Paste the full target job description here." disabled></textarea>
+          </label>
+        </div>
+
+        <button class="primary-button full-width" type="submit">Analyze Resume</button>
+      </form>
+
+      <section class="dashboard" id="report">
+        <div class="summary-band">
+          <div>
+            <p class="eyebrow" id="reportMode">Resume-only analysis</p>
+            <h2 id="reportTitle">Ready to score</h2>
+            <p id="reportSubtitle">Paste a resume or upload a file to generate ATS, content, impact, skills, grammar, and formatting feedback.</p>
+          </div>
+          <div class="score-gauge" aria-live="polite">
+            <strong id="overallScore">--</strong>
+            <span>/100</span>
+          </div>
+        </div>
+
+        <div class="metric-grid" id="metricGrid">
+          <article class="metric-card">
+            <span>ATS Rating</span>
+            <strong>--</strong>
+            <small>Waiting for analysis</small>
+          </article>
+          <article class="metric-card">
+            <span>Resume Status</span>
+            <strong>--</strong>
+            <small>Quality classification</small>
+          </article>
+          <article class="metric-card">
+            <span>Detected Sections</span>
+            <strong>--</strong>
+            <small>Resume completeness</small>
+          </article>
+        </div>
+
+        <div class="breakdown-panel">
+          <div class="panel-heading">
+            <h3>Score Breakdown</h3>
+          </div>
+          <div id="breakdownList" class="breakdown-list"></div>
+        </div>
+
+        <div class="insight-grid">
+          <section class="insight-panel">
+            <h3>Strengths</h3>
+            <ul id="strengthsList"></ul>
+          </section>
+          <section class="insight-panel">
+            <h3>Weaknesses</h3>
+            <ul id="weaknessesList"></ul>
+          </section>
+          <section class="insight-panel" id="keywordsPanel">
+            <h3>Missing Keywords</h3>
+            <ul id="keywordsList"></ul>
+          </section>
+          <section class="insight-panel">
+            <h3>Recommendations</h3>
+            <ul id="recommendationsList"></ul>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
