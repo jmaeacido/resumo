@@ -92,7 +92,8 @@ function setBusy(isBusy) {
 function renderReport(analysis) {
   document.getElementById("reportMode").textContent = analysis.mode === "job" ? "Resume + job description matching" : "Resume-only analysis";
   document.getElementById("reportTitle").textContent = analysis.title;
-  document.getElementById("reportSubtitle").textContent = `${analysis.subtitle} Engine: ${analysis.engine}.`;
+  const aiStatus = analysis.ai_status ? ` ${analysis.ai_status}` : "";
+  document.getElementById("reportSubtitle").textContent = `${analysis.subtitle} Engine: ${analysis.engine}.${aiStatus}`;
   document.getElementById("overallScore").textContent = analysis.overall;
   printButton.textContent = "Download PDF";
 
@@ -116,7 +117,13 @@ function renderReport(analysis) {
   renderList("strengthsList", analysis.strengths);
   renderList("weaknessesList", analysis.weaknesses);
   renderList("recommendationsList", analysis.recommendations);
-  renderList("keywordsList", analysis.keywords?.length ? analysis.keywords : ["Available in Job Match mode when a job description is provided."], Boolean(analysis.keywords?.length));
+  const keywordsPanel = document.getElementById("keywordsPanel");
+  keywordsPanel.hidden = analysis.mode !== "job";
+  if (analysis.mode === "job") {
+    renderList("keywordsList", analysis.keywords?.length ? analysis.keywords : ["No missing keywords detected."], Boolean(analysis.keywords?.length));
+  } else {
+    renderList("keywordsList", []);
+  }
 }
 
 function renderList(id, items, asTags = false) {

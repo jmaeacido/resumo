@@ -43,6 +43,10 @@ try {
     } else {
         $analysis['engine'] = 'Local scoring engine';
     }
+    if (($analysis['mode'] ?? 'resume') !== 'job') {
+        $analysis['keywords'] = [];
+    }
+    $analysis['ai_status'] = OllamaScorer::lastStatus();
 
     $analysis['resume_excerpt'] = mb_substr($resumeText, 0, 1400);
     $analysis['created_at'] = gmdate('c');

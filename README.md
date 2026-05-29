@@ -94,9 +94,12 @@ The default `.env` values are:
 OLLAMA_ENABLED=true
 OLLAMA_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=llama3.2
+OLLAMA_TIMEOUT=90
 ```
 
 If Ollama is not running, Resumo falls back to the local scoring engine.
+
+You can switch to any installed Ollama model by changing `OLLAMA_MODEL`.
 
 ## Supported Resume Files
 
