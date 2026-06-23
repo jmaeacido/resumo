@@ -4,6 +4,7 @@ let previewMode = "raw";
 let activePreviewText = "";
 let activePreviewLabel = "Live preview from resume text";
 let activePreviewSections = null;
+let authUser = null;
 
 const form = document.getElementById("resumeForm");
 const resumeText = document.getElementById("resumeText");
@@ -13,6 +14,13 @@ const jobTitle = document.getElementById("jobTitle");
 const jobDescription = document.getElementById("jobDescription");
 const tabs = document.querySelectorAll(".mode-tab");
 const printButton = document.getElementById("printButton");
+const loginButton = document.getElementById("loginButton");
+const signupButton = document.getElementById("signupButton");
+const logoutButton = document.getElementById("logoutButton");
+const authGuestActions = document.getElementById("authGuestActions");
+const authUserActions = document.getElementById("authUserActions");
+const accountName = document.getElementById("accountName");
+const accountEmail = document.getElementById("accountEmail");
 const submitButton = form.querySelector("button[type='submit']");
 const fileLabel = document.querySelector(".custom-file-label");
 const previewButtons = document.querySelectorAll(".preview-mode");
@@ -21,7 +29,23 @@ const previewSource = document.getElementById("previewSource");
 const previewWords = document.getElementById("previewWords");
 const previewLines = document.getElementById("previewLines");
 const previewSectionsCount = document.getElementById("previewSectionsCount");
+const previewFitScore = document.getElementById("previewFitScore");
 const previewSectionChips = document.getElementById("previewSectionChips");
+const previewOutline = document.getElementById("previewOutline");
+const previewSignals = document.getElementById("previewSignals");
+const recommendedResumePanel = document.getElementById("recommendedResumePanel");
+const recommendedResume = document.getElementById("recommendedResume");
+const copyRecommendedResume = document.getElementById("copyRecommendedResume");
+const downloadRecommendedResume = document.getElementById("downloadRecommendedResume");
+const downloadRecommendedResumePdf = document.getElementById("downloadRecommendedResumePdf");
+const butlerLauncher = document.getElementById("butlerLauncher");
+const openButlerNav = document.getElementById("openButlerNav");
+const butlerPanel = document.getElementById("resumoButler");
+const butlerClose = document.getElementById("butlerClose");
+const butlerMessages = document.getElementById("butlerMessages");
+const butlerForm = document.getElementById("butlerForm");
+const butlerInput = document.getElementById("butlerInput");
+const butlerActions = document.querySelectorAll("[data-butler-action]");
 
 const sectionPatterns = {
   contact: /(\b[\w.%+-]+@[\w.-]+\.[a-z]{2,}\b)|(\+?\d[\d\s().-]{7,})|(linkedin\.com\/in\/)/i,
@@ -39,7 +63,7 @@ const processSteps = [
   { id: "upload", label: "Uploading resume", target: 28 },
   { id: "extract", label: "Extracting document content", target: 44 },
   { id: "score", label: "Scoring resume quality", target: 64 },
-  { id: "ai", label: "Enhancing insights", target: 84 },
+  { id: "ai", label: "Generating resume draft", target: 84 },
   { id: "report", label: "Building report", target: 96 }
 ];
 
@@ -92,9 +116,9 @@ resumeFile.addEventListener("change", () => {
   }
 });
 
-printButton.addEventListener("click", () => {
+printButton.addEventListener("click", async () => {
   if (latestReport?.pdf_url) {
-    window.open(latestReport.pdf_url, "_blank");
+    await openPdfWithAuthPrompt(latestReport.pdf_url);
     return;
   }
   showAlert("No report yet", "Run an analysis first, then Resumo can generate the PDF report.", "info");
@@ -103,6 +127,59 @@ printButton.addEventListener("click", () => {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   await analyze();
+});
+
+loginButton.addEventListener("click", () => showAuthDialog("login"));
+signupButton.addEventListener("click", () => showAuthDialog("signup"));
+logoutButton.addEventListener("click", async () => {
+  try {
+    await postAuth("logout", {});
+    setAuthUser(null);
+    showToast("Signed out.");
+  } catch (error) {
+    showAlert("Sign out failed", error.message, "error");
+  }
+});
+
+copyRecommendedResume.addEventListener("click", async () => {
+  if (!latestReport?.recommended_resume) return;
+  const text = recommendedResumeToText(latestReport.recommended_resume);
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Recommended resume copied.");
+  } catch (error) {
+    showAlert("Copy unavailable", "Select the recommended resume text and copy it manually.", "info");
+  }
+});
+
+downloadRecommendedResumePdf.addEventListener("click", async (event) => {
+  event.preventDefault();
+  const url = downloadRecommendedResumePdf.getAttribute("href");
+  if (!url || url === "#") {
+    showAlert("No PDF yet", "Run an analysis first, then Resumo can generate a recommended resume PDF.", "info");
+    return;
+  }
+  await openPdfWithAuthPrompt(url);
+});
+
+butlerLauncher.addEventListener("click", () => openButler());
+butlerClose.addEventListener("click", () => closeButler());
+openButlerNav.addEventListener("click", (event) => {
+  event.preventDefault();
+  openButler(true);
+});
+
+butlerActions.forEach((button) => {
+  button.addEventListener("click", () => handleButlerQuickAction(button.dataset.butlerAction));
+});
+
+butlerForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const question = butlerInput.value.trim();
+  if (!question) return;
+  addButlerMessage("user", question);
+  butlerInput.value = "";
+  await askButler(question);
 });
 
 resumeText.addEventListener("input", () => {
@@ -221,6 +298,7 @@ function renderReport(analysis) {
   renderList("strengthsList", analysis.strengths);
   renderList("weaknessesList", analysis.weaknesses);
   renderList("recommendationsList", analysis.recommendations);
+  renderRecommendedResume(analysis);
   const keywordsPanel = document.getElementById("keywordsPanel");
   keywordsPanel.hidden = analysis.mode !== "job";
   if (analysis.mode === "job") {
@@ -228,6 +306,309 @@ function renderReport(analysis) {
   } else {
     renderList("keywordsList", []);
   }
+}
+
+function renderRecommendedResume(analysis) {
+  const resume = analysis.recommended_resume;
+  recommendedResumePanel.hidden = !resume;
+  if (!resume) {
+    recommendedResume.innerHTML = "";
+    return;
+  }
+
+  downloadRecommendedResume.href = analysis.recommended_resume_url || "#";
+  downloadRecommendedResumePdf.href = analysis.recommended_resume_pdf_url || "#";
+  recommendedResume.innerHTML = `
+    <header>
+      <h3>${escapeHtml(resume.candidate_name || resume.headline || "Recommended Resume Draft")}</h3>
+      ${Array.isArray(resume.contact) && resume.contact.length ? `<div class="recommended-contact">${resume.contact.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
+      ${resume.target_role ? `<strong>${escapeHtml(resume.target_role)}</strong>` : ""}
+      <p>${escapeHtml(resume.summary || "")}</p>
+    </header>
+    ${(resume.sections || []).map((section) => `
+      <section>
+        <h4>${escapeHtml(section.heading || "")}</h4>
+        <ul>
+          ${(section.items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </section>
+    `).join("")}
+  `;
+}
+
+async function openPdfWithAuthPrompt(url) {
+  const shouldContinue = await showPdfAuthPrompt();
+  if (shouldContinue) {
+    window.open(url, "_blank");
+  }
+}
+
+async function showPdfAuthPrompt() {
+  if (authUser) return true;
+  if (!window.Swal) return true;
+
+  const result = await Swal.fire({
+    title: "Log in or sign up first",
+    html: `
+      <p class="mb-2">Create an account before downloading PDFs so Resumo can keep your reports, recommended resumes, and job-match history in one place.</p>
+      <p class="text-muted mb-0">You can continue without an account for this download.</p>
+    `,
+    icon: "info",
+    showDenyButton: true,
+    showCancelButton: true,
+    confirmButtonText: "Sign up",
+    denyButtonText: "Log in",
+    cancelButtonText: "Continue PDF",
+    confirmButtonColor: "#0c6b63",
+    denyButtonColor: "#63717d",
+    background: "#ffffff",
+    color: "#18212a"
+  });
+
+  if (result.isConfirmed) {
+    return Boolean(await showAuthDialog("signup"));
+  }
+
+  if (result.isDenied) {
+    return Boolean(await showAuthDialog("login"));
+  }
+
+  return result.dismiss === Swal.DismissReason.cancel;
+}
+
+async function loadAuthState() {
+  try {
+    const response = await fetch("api/auth.php?action=status", { headers: { "Accept": "application/json" } });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) {
+      setAuthUser(data.user || null);
+    }
+  } catch (error) {
+    setAuthUser(null);
+  }
+}
+
+function setAuthUser(user) {
+  authUser = user;
+  authGuestActions.hidden = Boolean(user);
+  authUserActions.hidden = !user;
+  accountName.textContent = user?.name || "Account";
+  accountEmail.textContent = user?.email || "";
+}
+
+async function showAuthDialog(mode = "login") {
+  const isSignup = mode === "signup";
+  if (!window.Swal) return null;
+
+  const result = await Swal.fire({
+    title: isSignup ? "Create your Resumo account" : "Log in to Resumo",
+    html: authFormMarkup(isSignup),
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: isSignup ? "Sign up" : "Log in",
+    cancelButtonText: "Cancel",
+    confirmButtonColor: "#0c6b63",
+    background: "#ffffff",
+    color: "#18212a",
+    showLoaderOnConfirm: true,
+    preConfirm: async () => {
+      const popup = Swal.getPopup();
+      const payload = {
+        email: popup.querySelector("[data-auth-email]")?.value.trim() || "",
+        password: popup.querySelector("[data-auth-password]")?.value || "",
+      };
+      if (isSignup) {
+        payload.name = popup.querySelector("[data-auth-name]")?.value.trim() || "";
+      }
+
+      try {
+        const data = await postAuth(isSignup ? "signup" : "login", payload);
+        setAuthUser(data.user || null);
+        return data.user;
+      } catch (error) {
+        Swal.showValidationMessage(error.message);
+        return false;
+      }
+    },
+    allowOutsideClick: () => !Swal.isLoading()
+  });
+
+  if (result.isConfirmed && result.value) {
+    showToast(isSignup ? "Account created. You are signed in." : "Welcome back.");
+    return result.value;
+  }
+
+  return null;
+}
+
+function authFormMarkup(isSignup) {
+  return `
+    <div class="auth-modal-form">
+      ${isSignup ? `
+        <label>
+          <span>Name</span>
+          <input class="swal2-input" data-auth-name type="text" autocomplete="name" placeholder="Jane Applicant">
+        </label>
+      ` : ""}
+      <label>
+        <span>Email</span>
+        <input class="swal2-input" data-auth-email type="email" autocomplete="email" placeholder="you@example.com">
+      </label>
+      <label>
+        <span>Password</span>
+        <input class="swal2-input" data-auth-password type="password" autocomplete="${isSignup ? "new-password" : "current-password"}" placeholder="At least 8 characters">
+      </label>
+      <p>${isSignup ? "Your account keeps future reports connected to your email." : "Use the email and password you used when signing up."}</p>
+    </div>
+  `;
+}
+
+async function postAuth(action, payload) {
+  const response = await fetch(`api/auth.php?action=${encodeURIComponent(action)}`, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "Auth request failed.");
+  }
+  return data;
+}
+
+function recommendedResumeToText(resume) {
+  const lines = [
+    String(resume.candidate_name || resume.headline || "Recommended Resume Draft").toUpperCase()
+  ];
+
+  if (Array.isArray(resume.contact) && resume.contact.length) {
+    lines.push(resume.contact.join(" | "));
+  }
+  if (resume.target_role) {
+    lines.push(String(resume.target_role));
+  }
+  lines.push("", String(resume.summary || ""), "");
+
+  (resume.sections || []).forEach((section) => {
+    lines.push(String(section.heading || "").toUpperCase());
+    (section.items || []).forEach((item) => lines.push(`- ${item}`));
+    lines.push("");
+  });
+
+  return lines.join("\n").trim();
+}
+
+function openButler(focusInput = false) {
+  butlerPanel.hidden = false;
+  butlerLauncher.classList.add("is-open");
+  if (!butlerMessages.childElementCount) {
+    addButlerMessage("assistant", "Hi, I am Resumo Butler. I can walk you through the dashboard, explain scores, help with job matching, and point you to the right download flow.");
+  }
+  if (focusInput) {
+    window.setTimeout(() => butlerInput.focus(), 80);
+  }
+}
+
+function closeButler() {
+  butlerPanel.hidden = true;
+  butlerLauncher.classList.remove("is-open");
+}
+
+function addButlerMessage(role, text) {
+  const message = document.createElement("div");
+  message.className = `butler-message ${role}`;
+  message.innerHTML = `<p>${escapeHtml(text)}</p>`;
+  butlerMessages.appendChild(message);
+  butlerMessages.scrollTop = butlerMessages.scrollHeight;
+  return message;
+}
+
+function handleButlerQuickAction(action) {
+  openButler();
+  const prompts = {
+    tutorial: "Start the tutorial.",
+    resume: "How do I improve my resume score?",
+    job: "How does Job Match work?",
+    pdf: "How do PDF downloads work?"
+  };
+  const prompt = prompts[action] || "Help me use Resumo.";
+  addButlerMessage("user", prompt);
+  if (action === "tutorial") {
+    askButler(prompt).then(() => startButlerTutorial());
+    return;
+  }
+  askButler(prompt);
+}
+
+async function startButlerTutorial() {
+  addButlerMessage("assistant", "I will guide you through the main Resumo workflow: add a resume, choose a mode, review the preview, run analysis, inspect the report, then download only after the account prompt.");
+  const steps = [
+    { selector: "#resumeForm", title: "Add resume content", text: "Paste resume text or upload TXT, PDF, DOC, or DOCX. TXT files can preview immediately; PDF and DOCX preview after extraction." },
+    { selector: ".mode-tabs", title: "Choose analysis mode", text: "Use Resume Score for a general review, or Job Match when you have a specific role and job description." },
+    { selector: "#resumePreviewPanel", title: "Check the preview", text: "The preview shows word count, detected sections, contact signals, bullets, metrics, and line-length warnings before scoring." },
+    { selector: "#report", title: "Read the report", text: "After analysis, Resumo shows the overall score, score breakdown, strengths, weaknesses, recommendations, and missing keywords for job mode." },
+    { selector: "#recommendedResumePanel", title: "Use the recommended draft", text: "When available, copy the ATS-friendly draft or download TXT/PDF. PDF downloads will prompt users to log in or sign up first." }
+  ];
+
+  for (const step of steps) {
+    const target = document.querySelector(step.selector);
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    await showButlerStep(step.title, step.text);
+  }
+}
+
+function showButlerStep(title, text) {
+  if (!window.Swal) {
+    addButlerMessage("assistant", `${title}: ${text}`);
+    return Promise.resolve();
+  }
+  return Swal.fire({
+    title,
+    text,
+    icon: "info",
+    confirmButtonText: "Next",
+    confirmButtonColor: "#0c6b63",
+    background: "#ffffff",
+    color: "#18212a"
+  });
+}
+
+async function askButler(message) {
+  const pending = addButlerMessage("assistant", "Thinking with Groq...");
+  try {
+    const response = await fetch("api/butler.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        context: butlerContext()
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Resumo Butler could not reach Groq.");
+    }
+    pending.querySelector("p").textContent = data.butler?.reply || "Groq returned an empty Butler reply.";
+  } catch (error) {
+    pending.querySelector("p").textContent = `${error.message} Check GROQ_ENABLED and GROQ_API_KEY in .env, then try again.`;
+  }
+  butlerMessages.scrollTop = butlerMessages.scrollHeight;
+}
+
+function butlerContext() {
+  return {
+    mode: currentMode,
+    has_resume_text: Boolean(resumeText.value.trim()),
+    has_resume_file: Boolean(resumeFile.files[0]),
+    has_job_description: Boolean(jobDescription.value.trim()),
+    has_report: Boolean(latestReport),
+    has_recommended_resume: Boolean(latestReport?.recommended_resume),
+    overall_score: latestReport?.overall ?? null,
+    authenticated: Boolean(authUser)
+  };
 }
 
 function setPreviewDocument(sourceText, sourceLabel = "Live preview from resume text", sections = null) {
@@ -278,14 +659,33 @@ function renderPreviewWaiting(fileName) {
 function updatePreviewStats(text, sectionsOverride = null) {
   const words = text ? (text.match(/\b[\p{L}\p{N}_]+\b/gu) || []).length : 0;
   const lines = text ? text.split(/\r?\n/).filter((line) => line.trim()).length : 0;
-  const sections = sectionsOverride ? sectionNamesFromAnalysis(sectionsOverride) : detectSections(text);
+  const parsed = parseResumePreview(text);
+  const sections = sectionsOverride ? sectionNamesFromAnalysis(sectionsOverride) : parsed.sections.map((section) => section.key);
+  const quality = previewQuality(text, parsed, words);
 
   previewWords.textContent = String(words);
   previewLines.textContent = String(lines);
   previewSectionsCount.textContent = String(sections.length);
+  previewFitScore.textContent = words ? `${quality.score}` : "--";
   previewSectionChips.innerHTML = sections.length
     ? sections.map((section) => `<span>${escapeHtml(toTitle(section))}</span>`).join("")
     : `<span class="muted-chip">No sections yet</span>`;
+  previewOutline.innerHTML = parsed.sections.length
+    ? parsed.sections.map((section) => `<li><button type="button" data-preview-jump="${escapeHtml(section.id)}">${escapeHtml(section.title)}</button></li>`).join("")
+    : `<li class="preview-muted">No outline yet</li>`;
+  previewSignals.innerHTML = quality.signals.map((signal) => `
+    <li class="${signal.state}">
+      <i class="fas ${signal.icon}" aria-hidden="true"></i>
+      <span>${escapeHtml(signal.text)}</span>
+    </li>
+  `).join("");
+
+  previewOutline.querySelectorAll("[data-preview-jump]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = document.getElementById(button.dataset.previewJump);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
 }
 
 function renderRawPreview(text) {
@@ -293,14 +693,35 @@ function renderRawPreview(text) {
 }
 
 function renderFormattedPreview(text) {
-  const lines = text.split(/\r?\n/);
-  const body = lines
-    .map((line) => renderPreviewLine(line))
-    .join("");
+  const parsed = parseResumePreview(text);
+  const contact = parsed.contact.length
+    ? `<div>${parsed.contact.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>`
+    : "";
+  const header = parsed.name || parsed.contact.length
+    ? `<header class="preview-resume-header"><h3>${escapeHtml(parsed.name || "Resume Candidate")}</h3>${contact}</header>`
+    : "";
+  const body = parsed.sections.length
+    ? parsed.sections.map((section) => `
+      <section class="preview-resume-section" id="${escapeHtml(section.id)}">
+        <h4>${escapeHtml(section.title)}</h4>
+        ${section.items.map((item) => renderPreviewItem(item)).join("")}
+      </section>
+    `).join("")
+    : text.split(/\r?\n/).map((line) => renderPreviewLine(line)).join("");
 
   return `
+    ${header}
     <div class="preview-resume-body">${body || `<p class="preview-muted">Add more resume content to build the preview.</p>`}</div>
   `;
+}
+
+function renderPreviewItem(item) {
+  const value = String(item ?? "").trim();
+  if (!value) return "";
+  if (/^[-*•]\s+/.test(value)) {
+    return `<p class="preview-bullet"><span></span><b>${escapeHtml(value.replace(/^[-*•]\s+/, ""))}</b></p>`;
+  }
+  return `<p>${escapeHtml(value)}</p>`;
 }
 
 function renderPreviewLine(line) {
@@ -324,6 +745,126 @@ function detectSections(text) {
     .map(([name]) => name);
 }
 
+function parseResumePreview(text) {
+  const lines = String(text ?? "").split(/\r?\n/);
+  const nonEmpty = lines.map((line) => line.trim()).filter(Boolean);
+  const contact = extractContact(text);
+  const name = inferPreviewName(nonEmpty, contact);
+  const sections = [];
+  let current = null;
+
+  nonEmpty.forEach((line, index) => {
+    const headingKey = sectionKeyFromHeading(line);
+    if (headingKey && line.length <= 48) {
+      current = {
+        id: `preview-section-${sections.length + 1}`,
+        key: headingKey,
+        title: toTitle(headingKey),
+        items: []
+      };
+      sections.push(current);
+      return;
+    }
+
+    if (index <= 2 && (line === name || contact.includes(line))) {
+      return;
+    }
+
+    if (!current) {
+      current = {
+        id: "preview-section-1",
+        key: "summary",
+        title: "Profile",
+        items: []
+      };
+      sections.push(current);
+    }
+    current.items.push(line);
+  });
+
+  return {
+    name,
+    contact,
+    sections: sections.filter((section) => section.items.length || section.key !== "summary")
+  };
+}
+
+function extractContact(text) {
+  const items = [];
+  const email = text.match(/\b[\w.%+-]+@[\w.-]+\.[a-z]{2,}\b/i)?.[0];
+  const phone = text.match(/\+?\d[\d\s().-]{7,}/)?.[0];
+  const linkedin = text.match(/linkedin\.com\/in\/[^\s|,;]+/i)?.[0];
+  if (email) items.push(email);
+  if (phone) items.push(phone.trim());
+  if (linkedin) items.push(linkedin);
+  return items;
+}
+
+function inferPreviewName(lines, contact) {
+  const contactText = contact.join(" ").toLowerCase();
+  const candidate = lines.find((line) => {
+    const normalized = line.toLowerCase();
+    return line.length <= 46
+      && !contactText.includes(normalized)
+      && !sectionKeyFromHeading(line)
+      && !/[|@]|\d{3,}/.test(line);
+  });
+  return candidate || "";
+}
+
+function sectionKeyFromHeading(line) {
+  const normalized = line.replace(/:$/, "").trim();
+  if (normalized.length > 48) return null;
+  const found = Object.entries(sectionPatterns).find(([, pattern]) => pattern.test(normalized));
+  return found?.[0] || null;
+}
+
+function previewQuality(text, parsed, words) {
+  if (!String(text ?? "").trim()) {
+    return {
+      score: 0,
+      signals: [{ state: "muted", icon: "fa-circle-info", text: "Paste or upload a resume to inspect it." }]
+    };
+  }
+
+  const bullets = (text.match(/(^|\n)\s*[-*•]/g) || []).length;
+  const metrics = (text.match(/\b\d+[%+]?|\$[\d,.]+/g) || []).length;
+  const longLines = String(text).split(/\r?\n/).filter((line) => line.trim().length > 140).length;
+  const hasEmail = /\b[\w.%+-]+@[\w.-]+\.[a-z]{2,}\b/i.test(text);
+  const hasPhone = /\+?\d[\d\s().-]{7,}/.test(text);
+  const hasLinkedIn = /linkedin\.com\/in\//i.test(text);
+  const sectionCount = parsed.sections.length;
+  const score = Math.max(0, Math.min(100, Math.round(
+    18
+    + Math.min(sectionCount, 7) * 7
+    + Math.min(bullets, 10) * 2
+    + Math.min(metrics, 6) * 4
+    + (hasEmail ? 8 : 0)
+    + (hasPhone ? 6 : 0)
+    + (hasLinkedIn ? 5 : 0)
+    + (words >= 320 && words <= 900 ? 12 : 0)
+    - Math.min(longLines * 4, 16)
+  )));
+
+  const signals = [
+    signal(hasEmail && hasPhone, "fa-address-card", "Contact details are easy to find.", "Add email and phone near the top."),
+    signal(sectionCount >= 5, "fa-list-check", `${sectionCount} resume sections detected.`, "Add standard sections like Summary, Experience, Skills, and Education."),
+    signal(bullets >= 5, "fa-align-left", `${bullets} bullet points detected.`, "Use bullets for faster recruiter scanning."),
+    signal(metrics >= 3, "fa-chart-simple", `${metrics} measurable details found.`, "Add more numbers for impact, scale, or time saved."),
+    signal(longLines === 0, "fa-ruler-horizontal", "Line lengths look ATS-friendly.", `${longLines} long line${longLines === 1 ? "" : "s"} may be hard to scan.`),
+  ];
+
+  return { score, signals };
+}
+
+function signal(ok, icon, goodText, fixText) {
+  return {
+    state: ok ? "good" : "warn",
+    icon: ok ? icon : "fa-triangle-exclamation",
+    text: ok ? goodText : fixText
+  };
+}
+
 function sectionNamesFromAnalysis(sections) {
   if (Array.isArray(sections)) {
     return sections;
@@ -343,7 +884,7 @@ function analyzedResumeText(fileText = "") {
 function isSectionHeading(line) {
   const normalized = line.replace(/:$/, "");
   if (normalized.length > 38) return false;
-  return Object.values(sectionPatterns).some((pattern) => pattern.test(normalized));
+  return Boolean(sectionKeyFromHeading(normalized));
 }
 
 function toTitle(value) {
@@ -360,6 +901,7 @@ function renderError(message) {
   document.getElementById("reportTitle").textContent = "Analysis needs attention";
   document.getElementById("reportSubtitle").textContent = message;
   document.getElementById("overallScore").textContent = "--";
+  recommendedResumePanel.hidden = true;
 }
 
 function postAnalysis(formData) {
@@ -549,5 +1091,6 @@ function escapeHtml(value) {
 }
 
 syncJobFields();
+loadAuthState();
 setProgress(0, "Ready");
 setPreviewDocument(resumeText.value, "Live preview from resume text");

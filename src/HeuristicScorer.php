@@ -55,19 +55,28 @@ final class HeuristicScorer
         $bullets = preg_match_all('/(^|\n)\s*[-*•]/u', $text);
         $numbers = preg_match_all('/\b\d+[%+]?|\$[\d,.]+/u', $text);
         $words = preg_match_all('/\b[\pL\pN_]+\b/u', $text);
+        $sentences = max(1, preg_match_all('/[.!?](\s|$)/u', $text));
+        $longLines = count(array_filter(preg_split('/\R/u', $text) ?: [], fn ($line) => mb_strlen(trim($line)) > 140));
+        $email = preg_match('/\b[\w.%+-]+@[\w.-]+\.[a-z]{2,}\b/i', $text) === 1;
+        $phone = preg_match('/\+?\d[\d\s().-]{7,}/', $text) === 1;
+        $linkedin = preg_match('/linkedin\.com\/in\//i', $text) === 1;
         $actions = self::countMatches($lower, self::ACTION_VERBS);
         $vague = self::countMatches($lower, self::VAGUE_TERMS);
         $skills = self::skills($text);
         $complex = preg_match('/\|.{2,}\||\t{2,}|_{4,}|={4,}/u', $text) === 1;
+        $impactDensity = $bullets > 0 ? min(1, ($numbers + $actions) / max(4, $bullets * 1.7)) : min(1, ($numbers + $actions) / 10);
+        $wordFit = $words >= 320 && $words <= 900 ? 12 : ($words < 180 ? -18 : -8);
+        $contactScore = ($email ? 35 : 0) + ($phone ? 25 : 0) + ($linkedin ? 20 : 0) + ($sections['contact'] ? 20 : 0);
+        $sectionScore = ($sectionCount / 8) * 100;
 
         $scores = [
-            'ATS Readability' => self::clamp(68 + $sectionCount * 4 + ($bullets > 4 ? 8 : 0) - ($complex ? 15 : 0)),
-            'Resume Completeness' => self::clamp(($sectionCount / 7) * 100),
-            'Content Quality' => self::clamp(62 + $actions * 3 - $vague * 8 + ($words > 250 ? 10 : 0)),
-            'Experience Impact' => self::clamp(48 + min($numbers * 8, 36) + min($actions * 2, 16)),
-            'Skills Clarity' => self::clamp(45 + count($skills) * 8 + ($sections['skills'] ? 15 : 0)),
-            'Grammar & Tone' => self::clamp(88 - preg_match_all('/ {3,}/', $text) * 4 - self::countMatches($lower, ['teh', 'recieve', 'managment', 'experiance']) * 7),
-            'Formatting' => self::clamp(70 + min($bullets * 2, 16) + ($words <= 950 ? 8 : -12) - ($complex ? 14 : 0)),
+            'ATS Readability' => self::clamp(58 + $sectionCount * 4 + ($bullets >= 5 ? 10 : 0) + min(12, $contactScore / 8) - ($complex ? 16 : 0) - min(12, $longLines * 2)),
+            'Resume Completeness' => self::clamp(($sectionScore * 0.78) + ($contactScore * 0.22)),
+            'Content Quality' => self::clamp(54 + min($actions * 4, 24) - $vague * 9 + $wordFit + min(10, $sentences)),
+            'Experience Impact' => self::clamp(42 + min($numbers * 9, 36) + min($actions * 3, 18) + $impactDensity * 18),
+            'Skills Clarity' => self::clamp(42 + min(count($skills) * 7, 35) + ($sections['skills'] ? 17 : 0) + (count($skills) >= 8 ? 8 : 0)),
+            'Grammar & Tone' => self::clamp(90 - preg_match_all('/ {3,}/', $text) * 4 - self::countMatches($lower, ['teh', 'recieve', 'managment', 'experiance']) * 8 - min(10, $longLines)),
+            'Formatting' => self::clamp(66 + min($bullets * 2, 18) + $wordFit - ($complex ? 16 : 0) - min(10, $longLines * 2)),
         ];
 
         $overall = self::weighted($scores, self::RESUME_WEIGHTS);
@@ -83,9 +92,11 @@ final class HeuristicScorer
             'weaknesses' => self::resumeWeaknesses($scores, $sections, $numbers),
             'keywords' => [],
             'recommendations' => self::resumeRecommendations($scores, $sections, $numbers),
+            'recommended_resume' => self::recommendedResume($text, '', '', $skills, []),
             'metrics' => [
                 ['ATS Rating', self::rating($scores['ATS Readability']), $scores['ATS Readability'] . '/100 parsing readiness'],
                 ['Resume Status', self::status($overall), 'General quality classification'],
+                ['Evidence Density', $numbers . ' metrics', $actions . ' action verbs and ' . $bullets . ' bullets detected'],
                 ['Detected Sections', $sectionCount . '/8', implode(', ', array_keys(array_filter($sections))) ?: 'None detected'],
             ],
         ];
@@ -103,14 +114,16 @@ final class HeuristicScorer
         $missingKeywords = array_slice(array_values(array_filter($jobKeywords, fn ($word) => !str_contains($resumeLower, $word))), 0, 14);
         $roleWords = array_slice(self::keywords($jobTitle . ' ' . $jobDescription), 0, 12);
         $roleHits = count(array_filter($roleWords, fn ($word) => str_contains($resumeLower, $word)));
+        $keywordCoverage = count($jobKeywords) ? count($matchedKeywords) / count($jobKeywords) : 0.6;
+        $skillCoverage = count($jobSkills) ? count($matchedSkills) / count($jobSkills) : min(0.75, count($resumeSkills) / 10);
 
         $scores = [
-            'Skills Match' => count($jobSkills) ? self::clamp(count($matchedSkills) / count($jobSkills) * 100) : self::clamp(55 + count($resumeSkills) * 5),
+            'Skills Match' => self::clamp(($skillCoverage * 82) + min(count($resumeSkills), 8) * 2.2),
             'Experience Relevance' => self::clamp(45 + $roleHits * 5 + self::countMatches($resumeLower, ['developed', 'managed', 'led', 'implemented', 'supported']) * 4),
-            'Keyword Match' => count($jobKeywords) ? self::clamp(count($matchedKeywords) / count($jobKeywords) * 100) : 60,
+            'Keyword Match' => self::clamp(($keywordCoverage * 88) + min($roleHits, 6) * 2),
             'ATS Readability' => $base['scores']['ATS Readability'],
             'Education & Certification' => self::clamp(50 + ($base['sections']['education'] ? 25 : 0) + ($base['sections']['certifications'] ? 20 : 0) + self::countMatches($resumeLower, ['degree', 'certified', 'certification']) * 5),
-            'Tailoring Quality' => self::clamp(45 + count($matchedSkills) * 6 + $roleHits * 4 + ($jobTitle && str_contains($resumeLower, mb_strtolower($jobTitle)) ? 10 : 0)),
+            'Tailoring Quality' => self::clamp(36 + count($matchedSkills) * 6 + $roleHits * 4 + count($matchedKeywords) * 1.4 + ($jobTitle && str_contains($resumeLower, mb_strtolower($jobTitle)) ? 10 : 0)),
         ];
 
         $overall = self::weighted($scores, self::JOB_WEIGHTS);
@@ -142,9 +155,11 @@ final class HeuristicScorer
                 'Group technical skills so required tools are easy for recruiters and ATS systems to find, with the most job-relevant stack appearing first.',
                 'Rewrite the top three role-matching bullets to include the employer’s language, the technical action you performed, and the result that proves capability.',
             ],
+            'recommended_resume' => self::recommendedResume($resume, $jobTitle, $jobDescription, $resumeSkills, array_slice(array_values(array_unique(array_merge($missingSkills, $missingKeywords))), 0, 12)),
             'metrics' => [
                 ['Job Match Rating', self::rating($overall), $overall . '/100 alignment'],
                 ['Matched Skills', count($matchedSkills) . '/' . max(count($jobSkills), 1), implode(', ', $matchedSkills) ?: 'No direct skill matches detected'],
+                ['Keyword Coverage', self::clamp($keywordCoverage * 100) . '%', count($matchedKeywords) . ' of ' . max(count($jobKeywords), 1) . ' priority terms detected'],
                 ['Missing Keywords', (string)(count($missingKeywords) + count($missingSkills)), 'Priority terms to consider adding honestly'],
             ],
         ];
@@ -228,6 +243,205 @@ final class HeuristicScorer
         $items[] = 'Review the final section for repeated statements and keep only the strongest version of each point so the resume feels concise and intentionally edited.';
         $items[] = 'For each major project, add a short result statement that explains who used the system, what improved, and why the work mattered operationally.';
         return $items;
+    }
+
+    private static function recommendedResume(string $resume, string $jobTitle, string $jobDescription, array $skills, array $missingKeywords): array
+    {
+        $targetRole = trim($jobTitle) ?: self::inferRole($resume, $skills);
+        $candidateName = self::inferCandidateName($resume);
+        $contact = self::extractContact($resume);
+        $sourceBullets = self::extractResumeBullets($resume);
+        $skillLine = implode(', ', array_slice(array_values(array_unique(array_merge($skills, $missingKeywords))), 0, 14));
+        if ($skillLine === '') {
+            $skillLine = 'Workflow improvement, stakeholder communication, documentation, troubleshooting, reporting, process support';
+        }
+
+        $summary = 'Results-focused ' . $targetRole . ' with experience improving operational workflows, supporting users and stakeholders, documenting solutions, and delivering reliable technical or process improvements.';
+        if (trim($jobDescription) !== '') {
+            $summary = 'Targeted ' . $targetRole . ' candidate with experience aligned to the employer priorities, including relevant tools, operational support, documentation, troubleshooting, reporting, and measurable delivery.';
+        }
+
+        $experience = $sourceBullets ?: [
+            'Improved a business workflow by clarifying requirements, coordinating with stakeholders, and delivering a practical solution that made daily work easier to complete.',
+            'Supported users or internal teams by troubleshooting issues, documenting repeatable steps, and communicating updates clearly from request through resolution.',
+            'Maintained organized documentation, reports, or system records so teams could track work accurately and make better operational decisions.',
+        ];
+        $educationItems = self::extractSectionContent($resume, 'education');
+        $certificationItems = self::extractSectionContent($resume, 'certifications');
+        $projectItems = self::extractSectionContent($resume, 'projects') ?: array_slice($experience, 0, 2);
+
+        $sections = [
+            [
+                'heading' => 'Professional Summary',
+                'items' => [
+                    $summary,
+                    'Known for clear documentation, dependable follow-through, and practical improvements that reduce manual work, clarify reporting, or strengthen operational reliability.',
+                ],
+            ],
+            [
+                'heading' => 'Core Skills',
+                'items' => [$skillLine],
+            ],
+            [
+                'heading' => 'Professional Experience',
+                'items' => array_slice($experience, 0, 5),
+            ],
+            [
+                'heading' => 'Selected Projects',
+                'items' => array_slice($projectItems, 0, 4),
+            ],
+        ];
+
+        if ($educationItems) {
+            $sections[] = [
+                'heading' => 'Education',
+                'items' => array_slice($educationItems, 0, 3),
+            ];
+        }
+
+        if ($certificationItems) {
+            $sections[] = [
+                'heading' => 'Certifications',
+                'items' => array_slice($certificationItems, 0, 4),
+            ];
+        }
+
+        return [
+            'candidate_name' => $candidateName,
+            'contact' => $contact,
+            'headline' => $candidateName ? $candidateName : $targetRole,
+            'target_role' => $targetRole,
+            'summary' => $summary,
+            'sections' => $sections,
+        ];
+    }
+
+    private static function inferCandidateName(string $resume): string
+    {
+        foreach (preg_split('/\R/u', $resume) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || mb_strlen($line) > 54) {
+                continue;
+            }
+            if (preg_match('/@|\d{3,}|linkedin\.com|github\.com|summary|experience|education|skills/i', $line)) {
+                continue;
+            }
+            if (preg_match('/^[\pL][\pL .\'-]{2,}$/u', $line)) {
+                return $line;
+            }
+        }
+
+        return '';
+    }
+
+    private static function extractContact(string $resume): array
+    {
+        $contact = [];
+        if (preg_match('/\b[\w.%+-]+@[\w.-]+\.[a-z]{2,}\b/i', $resume, $match)) {
+            $contact[] = $match[0];
+        }
+        if (preg_match('/\+?\d[\d\s().-]{7,}/', $resume, $match)) {
+            $contact[] = trim($match[0]);
+        }
+        if (preg_match('/linkedin\.com\/in\/[^\s|,;]+/i', $resume, $match)) {
+            $contact[] = $match[0];
+        }
+
+        return array_values(array_unique($contact));
+    }
+
+    private static function extractResumeBullets(string $resume): array
+    {
+        $items = [];
+        foreach (preg_split('/\R/u', $resume) ?: [] as $line) {
+            $line = trim($line);
+            if (!preg_match('/^[-*•]\s*(.+)$/u', $line, $match)) {
+                continue;
+            }
+            $item = trim($match[1]);
+            if (str_word_count($item) >= 5) {
+                $items[] = self::strengthenBullet($item);
+            }
+        }
+
+        return array_values(array_unique($items));
+    }
+
+    private static function extractSectionContent(string $resume, string $sectionKey): array
+    {
+        $capture = false;
+        $items = [];
+
+        foreach (preg_split('/\R/u', $resume) ?: [] as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            $section = self::sectionFromLine($trimmed);
+            if ($section !== null) {
+                $capture = $section === $sectionKey;
+                continue;
+            }
+
+            if ($capture && str_word_count($trimmed) >= 2) {
+                $items[] = preg_replace('/^[-*•]\s*/u', '', $trimmed);
+            }
+        }
+
+        return array_values(array_unique(array_slice($items, 0, 6)));
+    }
+
+    private static function sectionFromLine(string $line): ?string
+    {
+        $normalized = trim($line, " \t\n\r\0\x0B:");
+        if (mb_strlen($normalized) > 48) {
+            return null;
+        }
+
+        $map = [
+            'education' => '/\b(education|degree|university|college|bachelor|master|phd|diploma)\b/i',
+            'certifications' => '/\b(certifications?|licenses?|accreditations?)\b/i',
+            'projects' => '/\b(projects?|portfolio|selected work)\b/i',
+        ];
+
+        foreach ($map as $key => $pattern) {
+            if (preg_match($pattern, $normalized)) {
+                return $key;
+            }
+        }
+
+        if (preg_match('/\b(summary|profile|objective|professional summary|career summary|experience|employment|work history|professional experience|skills|technical skills|core competencies|technologies|awards?|honors?|achievements?)\b/i', $normalized)) {
+            return 'other';
+        }
+
+        return null;
+    }
+
+    private static function strengthenBullet(string $bullet): string
+    {
+        $bullet = rtrim($bullet, '.');
+        if (preg_match('/^(built|led|created|improved|reduced|increased|delivered|designed|managed|launched|optimized|automated|implemented|developed|migrated|supported|streamlined|coordinated)\b/i', $bullet)) {
+            return $bullet . '.';
+        }
+
+        return 'Delivered ' . lcfirst($bullet) . '.';
+    }
+
+    private static function inferRole(string $resume, array $skills): string
+    {
+        $lower = mb_strtolower($resume);
+        if (str_contains($lower, 'developer') || array_intersect($skills, ['php', 'javascript', 'typescript', 'react', 'vue', 'node'])) {
+            return 'Web Developer';
+        }
+        if (str_contains($lower, 'support') || str_contains($lower, 'helpdesk')) {
+            return 'Technical Support Specialist';
+        }
+        if (str_contains($lower, 'analyst') || array_intersect($skills, ['power bi', 'tableau', 'excel', 'sql'])) {
+            return 'Systems Analyst';
+        }
+
+        return 'Target Role';
     }
 
     private static function weighted(array $scores, array $weights): int

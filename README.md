@@ -2,7 +2,7 @@
 
 Resumo is a web-based AI resume scorer for evaluating resume quality, ATS readiness, and job-description alignment.
 
-It runs as a PHP/MySQL application and uses free/local AI resources only. If Ollama is available, Resumo asks a local model to improve the written feedback. If Ollama is not running, the app still works using its built-in scoring engine.
+It runs as a PHP/MySQL application. If Groq is configured, Resumo asks Groq AI to improve the written feedback. If Groq is unavailable, it tries Ollama, then falls back to its built-in scoring engine.
 
 ## Features
 
@@ -16,7 +16,7 @@ It runs as a PHP/MySQL application and uses free/local AI resources only. If Oll
 - MySQL report storage
 - Printable HTML reports
 - PDF report downloads
-- Free/local AI enhancement through Ollama
+- AI enhancement through Groq, with Ollama as an optional local fallback
 
 ## Requirements
 
@@ -29,6 +29,7 @@ It runs as a PHP/MySQL application and uses free/local AI resources only. If Oll
   - `zip`
   - `mbstring`
   - `dom`
+- Optional: Groq API key for hosted AI feedback enhancement
 - Optional: Ollama for local AI feedback enhancement
 
 ## Installation
@@ -78,11 +79,24 @@ Then open:
 http://127.0.0.1:8088
 ```
 
-## Free Local AI
+## AI Enhancement
 
-Resumo does not use paid AI APIs.
+Groq is the first AI provider used when `GROQ_API_KEY` is set:
 
-To enable local AI enhancement, install and start Ollama, then pull a model:
+```env
+GROQ_ENABLED=true
+GROQ_API_KEY=your-groq-api-key
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_TIMEOUT=60
+GROQ_MAX_TOKENS=1800
+```
+
+If Groq is disabled, missing a key, or unavailable, Resumo tries the local Ollama provider.
+
+## Free Local AI Fallback
+
+To enable local AI enhancement through Ollama, install and start Ollama, then pull a model:
 
 ```bash
 ollama pull llama3.2
@@ -97,7 +111,7 @@ OLLAMA_MODEL=llama3.2
 OLLAMA_TIMEOUT=90
 ```
 
-If Ollama is not running, Resumo falls back to the local scoring engine.
+If Groq and Ollama are not available, Resumo falls back to the local scoring engine.
 
 You can switch to any installed Ollama model by changing `OLLAMA_MODEL`.
 
@@ -118,6 +132,7 @@ api/
 src/
   Database.php
   DocumentExtractor.php
+  GroqScorer.php
   HeuristicScorer.php
   OllamaScorer.php
   ReportRenderer.php
