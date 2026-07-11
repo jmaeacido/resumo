@@ -88,7 +88,7 @@ export default function Dashboard({ reports }: PageProps<DashboardProps>) {
 
     return (
         <ResumoLayout>
-            <Head title="Resume Analysis" />
+            <Head title="AI Resume Analysis and ATS Scoring" />
 
             <div className="grid gap-8 lg:grid-cols-3">
                 <div className="space-y-6 lg:col-span-1">

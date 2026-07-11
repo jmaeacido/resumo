@@ -1,2 +1,13 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /confirm-password
+Disallow: /profile
+Disallow: /reports/
+Disallow: /api/
+
+Sitemap: https://resumo.kaila-app.com/sitemap.xml
