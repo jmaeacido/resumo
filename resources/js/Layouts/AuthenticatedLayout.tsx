@@ -9,7 +9,9 @@ export default function Authenticated({
     header,
     children,
 }: PropsWithChildren<{ header?: ReactNode }>) {
-    const user = usePage().props.auth.user!;
+    const page = usePage();
+    const user = page.props.auth.user!;
+    const isHome = page.url.split('?')[0] === '/';
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
@@ -29,7 +31,7 @@ export default function Authenticated({
                             <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                                 <NavLink
                                     href={route('home')}
-                                    active={route().current('home')}
+                                    active={isHome}
                                 >
                                     Dashboard
                                 </NavLink>
@@ -133,7 +135,7 @@ export default function Authenticated({
                     <div className="space-y-1 pb-3 pt-2">
                         <ResponsiveNavLink
                             href={route('home')}
-                            active={route().current('home')}
+                            active={isHome}
                         >
                             Dashboard
                         </ResponsiveNavLink>
