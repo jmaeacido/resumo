@@ -35,6 +35,9 @@ export default function Authenticated({
                                 >
                                     Dashboard
                                 </NavLink>
+                                <NavLink href={route('workspace.index')} active={page.url.startsWith('/workspace')}>
+                                    Career workspace
+                                </NavLink>
                             </div>
                         </div>
 

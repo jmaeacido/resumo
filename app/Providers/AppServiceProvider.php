@@ -20,7 +20,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $rootUrl = rtrim((string) config('app.url'), '/');
 
-        if ($rootUrl !== '') {
+        if ($rootUrl !== '' && ! app()->environment('testing')) {
             URL::forceRootUrl($rootUrl);
         }
 

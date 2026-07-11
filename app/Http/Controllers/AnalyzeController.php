@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ResumeReport;
 use App\Services\GroqButler;
 use App\Services\ResumeAnalysisService;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,15 @@ class AnalyzeController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if ($request->user()) {
+            $dailyScans = ResumeReport::query()
+                ->where('user_id', $request->user()->id)
+                ->where('created_at', '>=', now()->startOfDay())
+                ->count();
+
+            abort_if($dailyScans >= 20, 429, 'Daily scan limit reached. Try again tomorrow.');
+        }
+
         $validated = $request->validate([
             'mode' => 'required|in:resume,job',
             'resumeText' => 'nullable|string',

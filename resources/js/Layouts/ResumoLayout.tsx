@@ -25,6 +25,12 @@ export default function ResumoLayout({
                                     {user.name}
                                 </span>
                                 <Link
+                                    href={route('workspace.index')}
+                                    className="rounded-lg px-3 py-1.5 text-sm text-resumo-100 transition hover:bg-white/10"
+                                >
+                                    Career workspace
+                                </Link>
+                                <Link
                                     href={route('profile.edit')}
                                     className="rounded-lg px-3 py-1.5 text-sm text-resumo-100 transition hover:bg-white/10"
                                 >

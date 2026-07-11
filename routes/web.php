@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AnalyzeController;
 use App\Http\Controllers\ButlerController;
+use App\Http\Controllers\CareerWorkspaceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RecommendedResumeController;
@@ -22,6 +23,9 @@ Route::get('/reports/{report}/recommended-resume', [RecommendedResumeController:
     ->name('reports.recommended');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/workspace', [CareerWorkspaceController::class, 'index'])->name('workspace.index');
+    Route::post('/workspace', [CareerWorkspaceController::class, 'update'])->name('workspace.update');
+    Route::get('/workspace/export', [CareerWorkspaceController::class, 'export'])->name('workspace.export');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
