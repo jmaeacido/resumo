@@ -1,149 +1,111 @@
-# Resumo
+# Resumo — Laravel Fullstack Rebuild
 
-Resumo is a web-based AI resume scorer for evaluating resume quality, ATS readiness, and job-description alignment.
+Modern AI resume scoring platform built with **Laravel 13**, **Inertia.js**, **React**, **TypeScript**, and **Tailwind CSS**.
 
-It runs as a PHP/MySQL application. If Groq is configured, Resumo asks Groq AI to improve the written feedback. If Groq is unavailable, it tries Ollama, then falls back to its built-in scoring engine.
+## Stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend | Laravel 13, PHP 8.3+ |
+| Frontend | React 18, TypeScript, Inertia.js |
+| Styling | Tailwind CSS 3 |
+| Auth | Laravel Breeze (session-based) |
+| Database | MySQL 8 |
+| PDF | Dompdf |
+| AI | Groq (primary), Ollama (fallback) |
 
 ## Features
 
-- Resume-only scoring
-- Resume + job description matching
-- ATS readability analysis
-- Resume completeness checks
-- Skills and missing keyword analysis
-- Strengths, weaknesses, and recommendations
+- Resume Score and Job Match analysis modes
+- Heuristic scoring engine with Groq/Ollama AI enhancement
 - TXT, PDF, and DOCX resume extraction
-- MySQL report storage
-- Printable HTML reports
-- PDF report downloads
-- AI enhancement through Groq, with Ollama as an optional local fallback
+- Score breakdown, strengths, weaknesses, recommendations
+- AI-generated ATS-friendly resume draft
+- HTML and PDF report downloads
+- Resumo Butler AI assistant
+- User accounts with report history
+- Modern responsive dashboard UI
 
 ## Requirements
 
-- PHP 8.2 or newer
+- PHP 8.3+
 - Composer
-- MySQL 8 or compatible MariaDB
-- PHP extensions:
-  - `pdo_mysql`
-  - `curl`
-  - `zip`
-  - `mbstring`
-  - `dom`
-- Optional: Groq API key for hosted AI feedback enhancement
-- Optional: Ollama for local AI feedback enhancement
+- Node.js 18+
+- MySQL 8 (or MariaDB)
+- PHP extensions: `pdo_mysql`, `curl`, `zip`, `mbstring`, `dom`
 
 ## Installation
 
-Install dependencies:
-
 ```bash
 composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+npm install --legacy-peer-deps
+npm run build
 ```
 
-Create an environment file:
-
-```bash
-copy .env.example .env
-```
-
-Default database settings are configured for a typical Laragon MySQL setup:
+Configure your `.env` with database and AI provider settings:
 
 ```env
-DB_CONNECTION=mysql
 DB_DATABASE=resumo
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_USERNAME=root
-DB_PASSWORD=
+GROQ_API_KEY=your-groq-api-key
+OLLAMA_ENABLED=true
 ```
-
-Resumo automatically creates the `resumo` database and `resume_reports` table on first analysis.
 
 ## Running Locally
 
-With Laragon, open:
+### Laragon
 
-```text
-http://localhost/resumo/
-```
+Open `http://localhost/resumo/` — the root `index.php` forwards to Laravel's public entry point.
 
-Or use PHP's built-in server:
+### Development server
 
 ```bash
-php -S 127.0.0.1:8088
+composer dev
 ```
 
-Then open:
-
-```text
-http://127.0.0.1:8088
-```
-
-## AI Enhancement
-
-Groq is the first AI provider used when `GROQ_API_KEY` is set:
-
-```env
-GROQ_ENABLED=true
-GROQ_API_KEY=your-groq-api-key
-GROQ_BASE_URL=https://api.groq.com/openai/v1
-GROQ_MODEL=llama-3.3-70b-versatile
-GROQ_TIMEOUT=60
-GROQ_MAX_TOKENS=1800
-```
-
-If Groq is disabled, missing a key, or unavailable, Resumo tries the local Ollama provider.
-
-## Free Local AI Fallback
-
-To enable local AI enhancement through Ollama, install and start Ollama, then pull a model:
+Or separately:
 
 ```bash
-ollama pull llama3.2
+php artisan serve
+npm run dev
 ```
-
-The default `.env` values are:
-
-```env
-OLLAMA_ENABLED=true
-OLLAMA_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=llama3.2
-OLLAMA_TIMEOUT=90
-```
-
-If Groq and Ollama are not available, Resumo falls back to the local scoring engine.
-
-You can switch to any installed Ollama model by changing `OLLAMA_MODEL`.
-
-## Supported Resume Files
-
-- `.txt`
-- `.pdf`
-- `.docx`
-
-Scanned image-only PDFs require OCR, which is not included yet.
 
 ## Project Structure
 
-```text
-api/
-  analyze.php      Resume analysis endpoint
-  report.php       HTML and PDF report endpoint
-src/
-  Database.php
-  DocumentExtractor.php
-  GroqScorer.php
-  HeuristicScorer.php
-  OllamaScorer.php
-  ReportRenderer.php
-index.html
-styles.css
-app.js
-favicon.svg
+```
+app/
+  Http/Controllers/     API & page controllers
+  Models/               Eloquent models
+  Services/             Scoring, AI, document extraction
+resources/js/
+  Components/resumo/    UI components
+  Pages/                Inertia pages
+  Layouts/              App layouts
+legacy/                 Original plain-PHP version (archived)
 ```
 
-## Notes
+## Security
 
-Resume Score mode evaluates general resume quality only.
+- **Email verification** — new accounts must verify email before accessing profile settings
+- **Rate limiting** — analysis (8/min) and Butler (20/min) per user or IP
+- **Report ownership** — logged-in users own their reports; guest reports require a secure access token in URLs
+- **CSRF protection** — all state-changing web requests are protected
 
-Job Match mode requires a job description and calculates alignment, matched skills, missing keywords, and tailoring recommendations.
+### Email in local development
+
+With `MAIL_MAILER=log`, verification emails are written to `storage/logs/laravel.log`.
+
+## API Routes
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/api/analyze` | Run resume analysis |
+| POST | `/api/butler` | Butler AI chat |
+| GET | `/reports/{id}` | HTML/PDF report |
+| GET | `/reports/{id}/recommended-resume` | Recommended resume export |
+
+## License
+
+MIT
