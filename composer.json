@@ -12,6 +12,7 @@
         "laravel/framework": "^13.8",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
+        "resend/resend-laravel": "^1.4",
         "smalot/pdfparser": "^2.12",
         "tightenco/ziggy": "^2.0"
     },
@@ -85,6 +86,9 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
+        },
+        "platform": {
+            "php": "8.3.6"
         }
     },
     "minimum-stability": "stable",
